@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <style>
+    body {
+      width: 400px;
+      padding: 16px;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      font-size: 13px;
+    }
+    
+    .header {
+      display: flex;
+      align-items: center;
+      margin-bottom: 16px;
+      padding-bottom: 8px;
+      border-bottom: 1px solid #e0e0e0;
+    }
+    
+    .logo {
+      width: 24px;
+      height: 24px;
+      margin-right: 8px;
+      background: #db4c3f;
+      border-radius: 4px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: white;
+      font-weight: bold;
+      font-size: 12px;
+    }
+    
+    h1 {
+      margin: 0;
+      font-size: 16px;
+      font-weight: 600;
+    }
+    
+    .setup-section {
+      margin-bottom: 20px;
+    }
+    
+    .setup-section h2 {
+      font-size: 14px;
+      margin-bottom: 8px;
+      color: #333;
+    }
+    
+    .token-input {
+      width: 100%;
+      padding: 8px;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      font-size: 13px;
+      margin-bottom: 8px;
+    }
+    
+    .button {
+      background: #db4c3f;
+      color: white;
+      border: none;
+      padding: 8px 16px;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 13px;
+      margin-right: 8px;
+    }
+    
+    .button:hover {
+      background: #c23616;
+    }
+    
+    .button.secondary {
+      background: #f0f0f0;
+      color: #333;
+    }
+    
+    .button.secondary:hover {
+      background: #e0e0e0;
+    }
+    
+    .status {
+      padding: 8px;
+      border-radius: 4px;
+      margin: 8px 0;
+      font-size: 12px;
+    }
+    
+    .status.success {
+      background: #d4edda;
+      color: #155724;
+      border: 1px solid #c3e6cb;
+    }
+    
+    .status.error {
+      background: #f8d7da;
+      color: #721c24;
+      border: 1px solid #f5c6cb;
+    }
+    
+    .status.info {
+      background: #d1ecf1;
+      color: #0c5460;
+      border: 1px solid #bee5eb;
+    }
+    
+    .message-info {
+      background: #f8f9fa;
+      border: 1px solid #dee2e6;
+      border-radius: 4px;
+      padding: 12px;
+      margin: 12px 0;
+    }
+    
+    .message-info h3 {
+      margin: 0 0 8px 0;
+      font-size: 14px;
+      color: #333;
+    }
+    
+    .message-info p {
+      margin: 4px 0;
+      font-size: 12px;
+      color: #666;
+    }
+    
+    .loading {
+      display: none;
+      text-align: center;
+      padding: 20px;
+      color: #666;
+    }
+    
+    .hidden {
+      display: none;
+    }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <div class="logo">T</div>
+    <h1>Add to Todoist</h1>
+  </div>
+  
+  <div id="tokenSection" class="setup-section">
+    <h2>Todoist Setup</h2>
+    <div id="status" class="status">Not connected to Todoist</div>
+    <p>Enter your Todoist API token to connect:</p>
+    <input type="text" id="tokenInput" class="token-input" placeholder="Enter your Todoist API token..." />
+    <div>
+      <button id="saveToken" class="button">Save Token</button>
+      <button id="testConnection" class="button secondary">Test Connection</button>
+    </div>
+    <div id="tokenHelp" class="status info">
+      <strong>How to get your token:</strong><br>
+      1. Go to <a href="https://todoist.com/prefs/integrations" target="_blank">Todoist Settings → Integrations</a><br>
+      2. Scroll to "Developer" section<br>
+      3. Copy your API token
+    </div>
+  </div>
+  
+  <div id="messageSection" class="setup-section hidden">
+    <h2>Current Email</h2>
+    <div id="messageInfo" class="message-info">
+      <p>Loading email information...</p>
+    </div>
+    <button id="refreshMessage" class="button secondary">Refresh Message</button>
+    <button id="addToTodoistButton" class="button">Add to Todoist (Coming Soon)</button>
+  </div>
+  
+  <script src="popup.js"></script>
+</body>
+</html>

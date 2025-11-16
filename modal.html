@@ -1,0 +1,334 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Todoist Integration</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: #f8f9fa;
+      height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    
+    .modal-container {
+      background: white;
+      border-radius: 12px;
+      box-shadow: 0 10px 25px rgba(0, 0, 0, 0.15);
+      width: 90%;
+      max-width: 500px;
+      max-height: 90vh;
+      overflow-y: auto;
+    }
+    
+    .modal-header {
+      background: #db4c3f;
+      color: white;
+      padding: 20px;
+      border-radius: 12px 12px 0 0;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    
+    .modal-header h1 {
+      font-size: 20px;
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+    }
+    
+    .logo {
+      width: 32px;
+      height: 32px;
+      margin-right: 12px;
+      background: rgba(255, 255, 255, 0.2);
+      border-radius: 6px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: white;
+      font-weight: bold;
+      font-size: 16px;
+    }
+    
+    .close-btn {
+      background: none;
+      border: none;
+      color: white;
+      font-size: 24px;
+      cursor: pointer;
+      padding: 4px;
+      border-radius: 4px;
+      opacity: 0.8;
+    }
+    
+    .close-btn:hover {
+      opacity: 1;
+      background: rgba(255, 255, 255, 0.1);
+    }
+    
+    .modal-body {
+      padding: 24px;
+    }
+    
+    .section {
+      margin-bottom: 24px;
+    }
+    
+    .section:last-child {
+      margin-bottom: 0;
+    }
+    
+    .section h2 {
+      font-size: 16px;
+      margin-bottom: 12px;
+      color: #333;
+      font-weight: 600;
+    }
+    
+    .status {
+      padding: 12px;
+      border-radius: 8px;
+      margin-bottom: 16px;
+      font-size: 14px;
+      font-weight: 500;
+    }
+    
+    .status.success {
+      background: #d4edda;
+      color: #155724;
+      border: 1px solid #c3e6cb;
+    }
+    
+    .status.error {
+      background: #f8d7da;
+      color: #721c24;
+      border: 1px solid #f5c6cb;
+    }
+    
+    .status.info {
+      background: #d1ecf1;
+      color: #0c5460;
+      border: 1px solid #bee5eb;
+    }
+    
+    .status.warning {
+      background: #fff3cd;
+      color: #856404;
+      border: 1px solid #ffeaa7;
+    }
+    
+    .form-group {
+      margin-bottom: 16px;
+    }
+    
+    .form-group label {
+      display: block;
+      margin-bottom: 6px;
+      font-weight: 500;
+      color: #333;
+      font-size: 14px;
+    }
+    
+    .form-input {
+      width: 100%;
+      padding: 12px;
+      border: 2px solid #e9ecef;
+      border-radius: 8px;
+      font-size: 14px;
+      transition: border-color 0.2s ease;
+    }
+    
+    .form-input:focus {
+      outline: none;
+      border-color: #db4c3f;
+    }
+    
+    .button-group {
+      display: flex;
+      gap: 12px;
+      margin-top: 16px;
+    }
+    
+    .btn {
+      padding: 12px 24px;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 14px;
+      font-weight: 500;
+      transition: all 0.2s ease;
+      flex: 1;
+    }
+    
+    .btn:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+    }
+    
+    .btn-primary {
+      background: #db4c3f;
+      color: white;
+    }
+    
+    .btn-primary:hover:not(:disabled) {
+      background: #c23616;
+      transform: translateY(-1px);
+    }
+    
+    .btn-secondary {
+      background: #f8f9fa;
+      color: #333;
+      border: 2px solid #e9ecef;
+    }
+    
+    .btn-secondary:hover:not(:disabled) {
+      background: #e9ecef;
+      transform: translateY(-1px);
+    }
+    
+    .help-text {
+      background: #f8f9fa;
+      border-left: 4px solid #db4c3f;
+      padding: 12px;
+      border-radius: 0 8px 8px 0;
+      margin-top: 16px;
+      font-size: 13px;
+      line-height: 1.5;
+    }
+    
+    .help-text a {
+      color: #db4c3f;
+      text-decoration: none;
+      font-weight: 500;
+    }
+    
+    .help-text a:hover {
+      text-decoration: underline;
+    }
+    
+    .message-info {
+      background: #f8f9fa;
+      border: 2px solid #e9ecef;
+      border-radius: 8px;
+      padding: 16px;
+    }
+    
+    .message-item {
+      margin-bottom: 8px;
+      font-size: 14px;
+      line-height: 1.4;
+    }
+    
+    .message-item:last-child {
+      margin-bottom: 0;
+    }
+    
+    .message-item strong {
+      color: #333;
+      font-weight: 600;
+    }
+    
+    .hidden {
+      display: none;
+    }
+    
+    .loading-spinner {
+      display: inline-block;
+      width: 16px;
+      height: 16px;
+      border: 2px solid #f3f3f3;
+      border-top: 2px solid #db4c3f;
+      border-radius: 50%;
+      animation: spin 1s linear infinite;
+      margin-right: 8px;
+    }
+    
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+    
+    .btn-loading {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+  </style>
+</head>
+<body>
+  <div class="modal-container">
+    <div class="modal-header">
+      <h1>
+        <div class="logo">T</div>
+        Todoist Integration
+      </h1>
+      <button class="close-btn" id="closeModal" title="Close">&times;</button>
+    </div>
+    
+    <div class="modal-body">
+      <div id="tokenSection" class="section">
+        <h2>Setup Connection</h2>
+        <div id="status" class="status info">Ready to connect to Todoist</div>
+        
+        <div class="form-group">
+          <label for="tokenInput">Todoist API Token</label>
+          <input 
+            type="password" 
+            id="tokenInput" 
+            class="form-input" 
+            placeholder="Enter your Todoist API token..."
+            spellcheck="false"
+          />
+        </div>
+        
+        <div class="button-group">
+          <button id="saveToken" class="btn btn-primary">Save Token</button>
+          <button id="testConnection" class="btn btn-secondary">Test Connection</button>
+          <button id="clearToken" class="btn btn-secondary" style="background: #dc3545; color: white;">Clear Token</button>
+        </div>
+        
+        <div class="help-text">
+          <strong>How to get your API token:</strong><br>
+          1. Go to <a href="https://app.todoist.com/app/settings/integrations" target="_blank">Todoist Settings → Integrations</a><br>
+          2. Scroll to "Developer" section<br>
+          3. Copy your API token<br>
+          4. Paste it in the field above
+        </div>
+      </div>
+      
+      <div id="messageSection" class="section hidden">
+        <h2>Email Information</h2>
+        <div id="messageInfo" class="message-info">
+          <div class="loading-spinner"></div>
+          Loading email information...
+        </div>
+        <div class="button-group">
+          <button id="refreshMessage" class="btn btn-secondary">Refresh Email</button>
+          <button id="addToTodoist" class="btn btn-primary">Add to Todoist (Coming Soon)</button>
+        </div>
+        
+        <!-- Token management section - always available when connected -->
+        <div style="margin-top: 24px; padding-top: 16px; border-top: 1px solid #e9ecef;">
+          <h3 style="font-size: 14px; margin-bottom: 12px; color: #666;">Token Management</h3>
+          <div class="button-group">
+            <button id="clearTokenConnected" class="btn btn-secondary" style="background: #dc3545; color: white;">Clear Stored Token</button>
+            <button id="changeToken" class="btn btn-secondary">Change Token</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  
+  <script src="modal.js"></script>
+</body>
+</html>

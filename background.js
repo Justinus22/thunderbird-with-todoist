@@ -15,24 +15,8 @@ browser.runtime.onInstalled.addListener((details) => {
   });
 });
 
-// Handle message display action clicks (when user clicks the button)
-browser.messageDisplayAction.onClicked.addListener(async (tab) => {
-  console.log('Message display action clicked for tab:', tab.id);
-  
-  try {
-    // Open the modal window
-    const window = await browser.windows.create({
-      url: browser.runtime.getURL('modal.html'),
-      type: 'popup',
-      width: 600,
-      height: 700
-    });
-    
-    console.log('Modal window opened:', window.id);
-  } catch (error) {
-    console.error('Error opening modal:', error);
-  }
-});
+// Note: messageDisplayAction popup is now handled automatically by Thunderbird
+// via the "default_popup" in manifest.json - no click handler needed
 
 // Todoist API helper functions
 const TODOIST_API_BASE = 'https://api.todoist.com/api/v1';

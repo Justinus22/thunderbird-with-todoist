@@ -158,6 +158,28 @@ function setupEventListeners() {
     });
   }
   
+  // Open settings button
+  const openSettingsBtn = document.getElementById('openSettings');
+  if (openSettingsBtn) {
+    console.log('Found openSettings button, adding listener');
+    openSettingsBtn.addEventListener('click', (e) => {
+      console.log('Settings button clicked');
+      e.preventDefault();
+      openSettingsPage();
+    });
+  }
+  
+  // Open settings button (setup section)
+  const openSettingsSetupBtn = document.getElementById('openSettingsSetup');
+  if (openSettingsSetupBtn) {
+    console.log('Found openSettingsSetup button, adding listener');
+    openSettingsSetupBtn.addEventListener('click', (e) => {
+      console.log('Settings (setup) button clicked');
+      e.preventDefault();
+      openSettingsPage();
+    });
+  }
+  
   // Enter key in token input
   const tokenInput = document.getElementById('tokenInput');
   if (tokenInput) {
@@ -452,4 +474,22 @@ function escapeHtml(text) {
   const div = document.createElement('div');
   div.textContent = text;
   return div.innerHTML;
+}
+
+// Open the settings/configuration page
+async function openSettingsPage() {
+  try {
+    console.log('Opening settings page as tab');
+    
+    // Create a new tab for the settings page within Thunderbird
+    const newTab = await browser.tabs.create({
+      url: browser.runtime.getURL('config.html'),
+      active: true
+    });
+    
+    console.log('Settings tab opened:', newTab.id);
+  } catch (error) {
+    console.error('Error opening settings page:', error);
+    updateStatus('Failed to open settings page', 'error');
+  }
 }

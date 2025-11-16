@@ -263,6 +263,91 @@
       align-items: center;
       justify-content: center;
     }
+
+    /* Dark mode support */
+    @media (prefers-color-scheme: dark) {
+      body {
+        background: #1a1a1a;
+        color: #ffffff;
+      }
+      
+      .modal-container {
+        background: #2d2d2d;
+        box-shadow: 0 10px 25px rgba(0, 0, 0, 0.5);
+      }
+      
+      .section h2 {
+        color: #ffffff;
+      }
+      
+      .form-group label {
+        color: #ffffff;
+      }
+      
+      .form-input {
+        background: #404040;
+        border-color: #555555;
+        color: #ffffff;
+      }
+      
+      .form-input::placeholder {
+        color: #aaaaaa;
+      }
+      
+      .form-input:focus {
+        border-color: #db4c3f;
+      }
+      
+      .btn-secondary {
+        background: #404040;
+        color: #ffffff;
+        border-color: #555555;
+      }
+      
+      .btn-secondary:hover:not(:disabled) {
+        background: #555555;
+      }
+      
+      .help-text {
+        background: #404040;
+        color: #cccccc;
+        border-left-color: #db4c3f;
+      }
+      
+      .message-info {
+        background: #404040;
+        border-color: #555555;
+        color: #ffffff;
+      }
+      
+      .message-item strong {
+        color: #ffffff;
+      }
+      
+      .status.success {
+        background: #1a5a1a;
+        color: #90ee90;
+        border-color: #2d7a2d;
+      }
+      
+      .status.error {
+        background: #5a1a1a;
+        color: #ff9090;
+        border-color: #7a2d2d;
+      }
+      
+      .status.info {
+        background: #1a3a5a;
+        color: #90d7ff;
+        border-color: #2d5a7a;
+      }
+      
+      .status.warning {
+        background: #5a5a1a;
+        color: #ffff90;
+        border-color: #7a7a2d;
+      }
+    }
   </style>
 </head>
 <body>
@@ -297,6 +382,10 @@
           <button id="clearToken" class="btn btn-secondary" style="background: #dc3545; color: white;">Clear Token</button>
         </div>
         
+        <div class="button-group" style="margin-top: 12px;">
+          <button id="openSettingsSetup" class="btn btn-secondary" style="flex: none; width: auto;">⚙️ Settings</button>
+        </div>
+        
         <div class="help-text">
           <strong>How to get your API token:</strong><br>
           1. Go to <a href="https://app.todoist.com/app/settings/integrations" target="_blank">Todoist Settings → Integrations</a><br>
@@ -319,9 +408,10 @@
         
         <!-- Token management section - always available when connected -->
         <div style="margin-top: 24px; padding-top: 16px; border-top: 1px solid #e9ecef;">
-          <h3 style="font-size: 14px; margin-bottom: 12px; color: #666;">Token Management</h3>
+          <h3 style="font-size: 14px; margin-bottom: 12px; color: #666;">Options</h3>
           <div class="button-group">
-            <button id="clearTokenConnected" class="btn btn-secondary" style="background: #dc3545; color: white;">Clear Stored Token</button>
+            <button id="openSettings" class="btn btn-secondary">⚙️ Settings</button>
+            <button id="clearTokenConnected" class="btn btn-secondary" style="background: #dc3545; color: white;">Clear Token</button>
             <button id="changeToken" class="btn btn-secondary">Change Token</button>
           </div>
         </div>

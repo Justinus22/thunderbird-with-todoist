@@ -1,0 +1,608 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Todoist Integration - Settings</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: #f8f9fa;
+      color: #333;
+      line-height: 1.6;
+      padding: 24px;
+      margin: 0;
+      min-height: 100vh;
+    }
+    
+    .config-container {
+      background: white;
+      border-radius: 12px;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+      max-width: 800px;
+      margin: 0 auto;
+      overflow: hidden;
+    }
+    
+    .config-header {
+      background: #db4c3f;
+      color: white;
+      padding: 24px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    
+    .config-header h1 {
+      font-size: 24px;
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+    }
+    
+    .logo {
+      width: 36px;
+      height: 36px;
+      margin-right: 16px;
+      background: rgba(255, 255, 255, 0.2);
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: white;
+      font-weight: bold;
+      font-size: 18px;
+    }
+    
+    .close-btn {
+      background: none;
+      border: none;
+      color: white;
+      font-size: 24px;
+      cursor: pointer;
+      padding: 8px;
+      border-radius: 6px;
+      opacity: 0.8;
+    }
+    
+    .close-btn:hover {
+      opacity: 1;
+      background: rgba(255, 255, 255, 0.1);
+    }
+    
+    .config-body {
+      padding: 32px;
+    }
+    
+    .tab-nav {
+      display: flex;
+      border-bottom: 2px solid #e9ecef;
+      margin-bottom: 32px;
+    }
+    
+    .tab-button {
+      background: none;
+      border: none;
+      padding: 12px 24px;
+      font-size: 16px;
+      font-weight: 500;
+      color: #666;
+      cursor: pointer;
+      border-bottom: 3px solid transparent;
+      transition: all 0.2s ease;
+    }
+    
+    .tab-button.active {
+      color: #db4c3f;
+      border-bottom-color: #db4c3f;
+    }
+    
+    .tab-button:hover:not(.active) {
+      color: #333;
+      background: #f8f9fa;
+    }
+    
+    .tab-content {
+      display: none;
+    }
+    
+    .tab-content.active {
+      display: block;
+    }
+    
+    .section {
+      margin-bottom: 32px;
+    }
+    
+    .section:last-child {
+      margin-bottom: 0;
+    }
+    
+    .section h2 {
+      font-size: 20px;
+      margin-bottom: 16px;
+      color: #333;
+      font-weight: 600;
+    }
+    
+    .section h3 {
+      font-size: 16px;
+      margin-bottom: 12px;
+      color: #555;
+      font-weight: 600;
+    }
+    
+    .section p {
+      margin-bottom: 16px;
+      color: #666;
+      font-size: 15px;
+    }
+    
+    .status {
+      padding: 16px;
+      border-radius: 8px;
+      margin-bottom: 20px;
+      font-size: 14px;
+      font-weight: 500;
+    }
+    
+    .status.success {
+      background: #d4edda;
+      color: #155724;
+      border: 1px solid #c3e6cb;
+    }
+    
+    .status.error {
+      background: #f8d7da;
+      color: #721c24;
+      border: 1px solid #f5c6cb;
+    }
+    
+    .status.warning {
+      background: #fff3cd;
+      color: #856404;
+      border: 1px solid #ffeaa7;
+    }
+    
+    .form-group {
+      margin-bottom: 24px;
+    }
+    
+    .form-group label {
+      display: block;
+      margin-bottom: 8px;
+      font-weight: 600;
+      color: #333;
+      font-size: 14px;
+    }
+    
+    .form-input {
+      width: 100%;
+      padding: 14px;
+      border: 2px solid #e9ecef;
+      border-radius: 8px;
+      font-size: 15px;
+      transition: border-color 0.2s ease;
+    }
+    
+    .form-input:focus {
+      outline: none;
+      border-color: #db4c3f;
+    }
+    
+    .form-select {
+      width: 100%;
+      padding: 14px;
+      border: 2px solid #e9ecef;
+      border-radius: 8px;
+      font-size: 15px;
+      background: white;
+      cursor: pointer;
+    }
+    
+    .form-checkbox {
+      display: flex;
+      align-items: center;
+      margin-bottom: 12px;
+    }
+    
+    .form-checkbox input[type="checkbox"] {
+      margin-right: 12px;
+      transform: scale(1.2);
+    }
+    
+    .form-checkbox label {
+      margin-bottom: 0;
+      font-weight: 500;
+      cursor: pointer;
+    }
+    
+    .button-group {
+      display: flex;
+      gap: 16px;
+      margin-top: 24px;
+    }
+    
+    .btn {
+      padding: 14px 28px;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 15px;
+      font-weight: 500;
+      transition: all 0.2s ease;
+    }
+    
+    .btn:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+    }
+    
+    .btn-primary {
+      background: #db4c3f;
+      color: white;
+    }
+    
+    .btn-primary:hover:not(:disabled) {
+      background: #c23616;
+      transform: translateY(-1px);
+    }
+    
+    .btn-secondary {
+      background: #f8f9fa;
+      color: #333;
+      border: 2px solid #e9ecef;
+    }
+    
+    .btn-secondary:hover:not(:disabled) {
+      background: #e9ecef;
+      transform: translateY(-1px);
+    }
+    
+    .btn-danger {
+      background: #dc3545;
+      color: white;
+    }
+    
+    .btn-danger:hover:not(:disabled) {
+      background: #c82333;
+      transform: translateY(-1px);
+    }
+    
+    .info-box {
+      background: #f8f9fa;
+      border-left: 4px solid #db4c3f;
+      padding: 16px;
+      border-radius: 0 8px 8px 0;
+      margin: 16px 0;
+      font-size: 14px;
+      line-height: 1.5;
+    }
+    
+    .info-box a {
+      color: #db4c3f;
+      text-decoration: none;
+      font-weight: 500;
+    }
+    
+    .info-box a:hover {
+      text-decoration: underline;
+    }
+    
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 16px;
+      margin: 20px 0;
+    }
+    
+    .stat-item {
+      background: #f8f9fa;
+      border: 2px solid #e9ecef;
+      border-radius: 8px;
+      padding: 20px;
+      text-align: center;
+    }
+    
+    .stat-value {
+      font-size: 24px;
+      font-weight: bold;
+      color: #db4c3f;
+      display: block;
+    }
+    
+    .stat-label {
+      font-size: 12px;
+      color: #666;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-top: 4px;
+    }
+    
+    .hidden {
+      display: none;
+    }
+    
+    .loading-spinner {
+      display: inline-block;
+      width: 20px;
+      height: 20px;
+      border: 2px solid #f3f3f3;
+      border-top: 2px solid #db4c3f;
+      border-radius: 50%;
+      animation: spin 1s linear infinite;
+      margin-right: 8px;
+    }
+    
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+
+    /* Dark mode support */
+    @media (prefers-color-scheme: dark) {
+      body {
+        background: #1a1a1a;
+        color: #ffffff;
+      }
+      
+      .config-container {
+        background: #2d2d2d;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+      }
+      
+      .config-body {
+        background: #2d2d2d;
+      }
+      
+      .tab-nav {
+        border-bottom-color: #555555;
+      }
+      
+      .tab-button {
+        color: #cccccc;
+      }
+      
+      .tab-button.active {
+        color: #db4c3f;
+      }
+      
+      .tab-button:hover:not(.active) {
+        color: #ffffff;
+        background: #404040;
+      }
+      
+      .section h2, .section h3 {
+        color: #ffffff;
+      }
+      
+      .section p {
+        color: #cccccc;
+      }
+      
+      .form-group label {
+        color: #ffffff;
+      }
+      
+      .form-input, .form-select {
+        background: #404040;
+        border-color: #555555;
+        color: #ffffff;
+      }
+      
+      .form-input::placeholder {
+        color: #aaaaaa;
+      }
+      
+      .form-input:focus, .form-select:focus {
+        border-color: #db4c3f;
+      }
+      
+      .btn-secondary {
+        background: #404040;
+        color: #ffffff;
+        border-color: #555555;
+      }
+      
+      .btn-secondary:hover:not(:disabled) {
+        background: #555555;
+      }
+      
+      .info-box {
+        background: #404040;
+        color: #cccccc;
+      }
+      
+      .stat-item {
+        background: #404040;
+        border-color: #555555;
+      }
+      
+      .stat-value {
+        color: #db4c3f;
+      }
+      
+      .stat-label {
+        color: #aaaaaa;
+      }
+      
+      .status.success {
+        background: #1a5a1a;
+        color: #90ee90;
+        border-color: #2d7a2d;
+      }
+      
+      .status.error {
+        background: #5a1a1a;
+        color: #ff9090;
+        border-color: #7a2d2d;
+      }
+      
+      .status.warning {
+        background: #5a5a1a;
+        color: #ffff90;
+        border-color: #7a7a2d;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="config-container">
+    <div class="config-header">
+      <h1>
+        <div class="logo">T</div>
+        Todoist Integration - Settings
+      </h1>
+      <button class="close-btn" id="closeConfig" title="Close">&times;</button>
+    </div>
+    
+    <div class="config-body">
+      <div class="tab-nav">
+        <button class="tab-button active" data-tab="connection">Connection</button>
+        <button class="tab-button" data-tab="preferences">Preferences</button>
+        <button class="tab-button" data-tab="about">About</button>
+      </div>
+      
+      <!-- Connection Tab -->
+      <div class="tab-content active" id="connection">
+        <div class="section">
+          <h2>Todoist Connection</h2>
+          <div id="connectionStatus" class="status warning">Not connected</div>
+          
+          <div class="form-group">
+            <label for="apiToken">API Token</label>
+            <input 
+              type="password" 
+              id="apiToken" 
+              class="form-input" 
+              placeholder="Enter your Todoist API token..."
+              spellcheck="false"
+            />
+          </div>
+          
+          <div class="button-group">
+            <button id="saveToken" class="btn btn-primary">Save Token</button>
+            <button id="testConnection" class="btn btn-secondary">Test Connection</button>
+            <button id="clearToken" class="btn btn-danger">Clear Token</button>
+          </div>
+          
+          <div class="info-box">
+            <strong>How to get your API token:</strong><br>
+            1. Go to <a href="https://app.todoist.com/app/settings/integrations" target="_blank">Todoist Settings → Integrations</a><br>
+            2. Scroll to "Developer" section<br>
+            3. Copy your API token<br>
+            4. Paste it in the field above and click "Save Token"
+          </div>
+        </div>
+        
+        <div class="section" id="statsSection" class="hidden">
+          <h2>Account Statistics</h2>
+          <div class="stats-grid">
+            <div class="stat-item">
+              <span class="stat-value" id="projectCount">-</span>
+              <div class="stat-label">Projects</div>
+            </div>
+            <div class="stat-item">
+              <span class="stat-value" id="taskCount">-</span>
+              <div class="stat-label">Active Tasks</div>
+            </div>
+            <div class="stat-item">
+              <span class="stat-value" id="emailsProcessed">0</span>
+              <div class="stat-label">Emails Processed</div>
+            </div>
+          </div>
+        </div>
+      </div>
+      
+      <!-- Preferences Tab -->
+      <div class="tab-content" id="preferences">
+        <div class="section">
+          <h2>Email Processing Preferences</h2>
+          
+          <div class="form-group">
+            <label for="defaultProject">Default Project</label>
+            <select id="defaultProject" class="form-select">
+              <option value="">Select a project...</option>
+            </select>
+          </div>
+          
+          <div class="form-group">
+            <h3>Email Content Options</h3>
+            <div class="form-checkbox">
+              <input type="checkbox" id="includeBody" checked>
+              <label for="includeBody">Include email body in task description</label>
+            </div>
+            <div class="form-checkbox">
+              <input type="checkbox" id="includeAttachments">
+              <label for="includeAttachments">Include attachment information</label>
+            </div>
+            <div class="form-checkbox">
+              <input type="checkbox" id="includeHeaders">
+              <label for="includeHeaders">Include email headers (From, To, Date)</label>
+            </div>
+          </div>
+          
+          <div class="form-group">
+            <h3>Task Creation Options</h3>
+            <div class="form-checkbox">
+              <input type="checkbox" id="autoAddTodoist">
+              <label for="autoAddTodoist">Automatically add to Todoist without confirmation</label>
+            </div>
+            <div class="form-checkbox">
+              <input type="checkbox" id="markAsProcessed">
+              <label for="markAsProcessed">Mark emails as processed after adding to Todoist</label>
+            </div>
+          </div>
+          
+          <div class="button-group">
+            <button id="savePreferences" class="btn btn-primary">Save Preferences</button>
+            <button id="resetPreferences" class="btn btn-secondary">Reset to Defaults</button>
+          </div>
+        </div>
+      </div>
+      
+      <!-- About Tab -->
+      <div class="tab-content" id="about">
+        <div class="section">
+          <h2>About Todoist Integration</h2>
+          <p>This extension integrates Mozilla Thunderbird with Todoist, allowing you to easily convert emails into actionable tasks.</p>
+          
+          <h3>Features</h3>
+          <ul style="margin-left: 20px; margin-bottom: 20px;">
+            <li>Convert emails to Todoist tasks with one click</li>
+            <li>Preserve email content and metadata</li>
+            <li>Choose target projects for better organization</li>
+            <li>Dark mode support</li>
+            <li>Secure token storage</li>
+          </ul>
+          
+          <h3>Version Information</h3>
+          <div class="stats-grid">
+            <div class="stat-item">
+              <span class="stat-value">0.1.0</span>
+              <div class="stat-label">Extension Version</div>
+            </div>
+            <div class="stat-item">
+              <span class="stat-value">v1</span>
+              <div class="stat-label">Todoist API</div>
+            </div>
+          </div>
+          
+          <div class="info-box">
+            <strong>Need Help?</strong><br>
+            This extension integrates with the official Todoist API. For Todoist-specific questions, visit the 
+            <a href="https://todoist.com/help" target="_blank">Todoist Help Center</a>.
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  
+  <script src="config.js"></script>
+</body>
+</html>

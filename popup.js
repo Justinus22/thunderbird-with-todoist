@@ -108,6 +108,31 @@ function setupEventListeners() {
   } else {
     console.warn('Could not find refreshMessage button');
   }
+
+  // Project dropdown change event
+  const projectDropdown = document.getElementById('projectDropdown');
+  if (projectDropdown) {
+    console.log('Found projectDropdown, adding listener');
+    projectDropdown.addEventListener('change', (e) => {
+      console.log('Project dropdown changed to:', e.target.value);
+      loadTasksForProject(e.target.value);
+    });
+  } else {
+    console.warn('Could not find projectDropdown');
+  }
+
+  // Add as subtask button
+  const addAsSubtaskBtn = document.getElementById('addAsSubtaskButton');
+  if (addAsSubtaskBtn) {
+    console.log('Found addAsSubtaskButton, adding listener');
+    addAsSubtaskBtn.addEventListener('click', (e) => {
+      console.log('Add as subtask button clicked');
+      e.preventDefault();
+      addEmailAsSubtask();
+    });
+  } else {
+    console.warn('Could not find addAsSubtaskButton');
+  }
   
   // Enter key in token input
   const tokenInput = document.getElementById('tokenInput');
@@ -259,6 +284,12 @@ async function loadCurrentMessage() {
           <strong>ID:</strong> ${message.id}
         </div>
       `;
+      
+      // Store message data for later use
+      window.currentMessage = message;
+      
+      // Load projects for task selection
+      await loadProjects();
     } else {
       messageInfo.innerHTML = `
         <div class="message-item" style="color: orange;">
@@ -281,6 +312,138 @@ async function loadCurrentMessage() {
       refreshMessageBtn.disabled = false;
       refreshMessageBtn.textContent = 'Refresh Message';
     }
+  }
+}
+
+async function loadProjects() {
+  console.log('Loading projects...');
+  const projectDropdown = document.getElementById('projectDropdown');
+  
+  try {
+    const response = await browser.runtime.sendMessage({ type: 'GET_PROJECTS' });
+    
+    if (response.success && response.data) {
+      projectDropdown.innerHTML = '<option value="">Select a project...</option>';
+      
+      response.data.forEach(project => {
+        const option = document.createElement('option');
+        option.value = project.id;
+        option.textContent = project.name;
+        projectDropdown.appendChild(option);
+      });
+      
+      console.log(`Loaded ${response.data.length} projects`);
+    } else {
+      projectDropdown.innerHTML = '<option value="">Error loading projects</option>';
+      console.error('Failed to load projects:', response.error);
+    }
+  } catch (error) {
+    console.error('Error loading projects:', error);
+    projectDropdown.innerHTML = '<option value="">Error loading projects</option>';
+  }
+}
+
+async function loadTasksForProject(projectId) {
+  console.log('Loading tasks for project:', projectId);
+  const taskDropdown = document.getElementById('taskDropdown');
+  const addAsSubtaskBtn = document.getElementById('addAsSubtaskButton');
+  
+  if (!projectId) {
+    taskDropdown.innerHTML = '<option value="">First select a project</option>';
+    taskDropdown.disabled = true;
+    addAsSubtaskBtn.disabled = true;
+    return;
+  }
+  
+  taskDropdown.innerHTML = '<option value="">Loading tasks...</option>';
+  taskDropdown.disabled = false;
+  
+  try {
+    const response = await browser.runtime.sendMessage({ 
+      type: 'GET_TASKS', 
+      projectId: projectId 
+    });
+    
+    if (response.success && response.data) {
+      taskDropdown.innerHTML = '<option value="">Select a parent task...</option>';
+      
+      response.data.forEach(task => {
+        const option = document.createElement('option');
+        option.value = task.id;
+        option.textContent = task.content;
+        taskDropdown.appendChild(option);
+      });
+      
+      console.log(`Loaded ${response.data.length} tasks for project ${projectId}`);
+      addAsSubtaskBtn.disabled = false;
+    } else {
+      taskDropdown.innerHTML = '<option value="">Error loading tasks</option>';
+      addAsSubtaskBtn.disabled = true;
+      console.error('Failed to load tasks:', response.error);
+    }
+  } catch (error) {
+    console.error('Error loading tasks:', error);
+    taskDropdown.innerHTML = '<option value="">Error loading tasks</option>';
+    addAsSubtaskBtn.disabled = true;
+  }
+}
+
+async function addEmailAsSubtask() {
+  console.log('Adding email as subtask...');
+  
+  const taskDropdown = document.getElementById('taskDropdown');
+  const addAsSubtaskBtn = document.getElementById('addAsSubtaskButton');
+  const addingStatus = document.getElementById('addingStatus');
+  
+  const selectedTaskId = taskDropdown.value;
+  if (!selectedTaskId) {
+    addingStatus.textContent = 'Please select a parent task';
+    addingStatus.style.color = 'red';
+    return;
+  }
+  
+  if (!window.currentMessage) {
+    addingStatus.textContent = 'No email message available';
+    addingStatus.style.color = 'red';
+    return;
+  }
+  
+  // Disable button during creation
+  addAsSubtaskBtn.disabled = true;
+  addAsSubtaskBtn.textContent = 'Creating Subtask...';
+  addingStatus.textContent = 'Creating email subtask...';
+  addingStatus.style.color = 'blue';
+  
+  try {
+    const message = window.currentMessage;
+    
+    // Prepare attachments array (placeholder for now)
+    const attachments = message.attachments || [];
+    
+    const response = await browser.runtime.sendMessage({
+      type: 'CREATE_EMAIL_SUBTASK',
+      parentTaskId: selectedTaskId,
+      emailSubject: message.subject || 'No Subject',
+      emailBody: message.body || '',
+      attachments: attachments
+    });
+    
+    if (response.success) {
+      addingStatus.textContent = '✅ Email added as subtask successfully!';
+      addingStatus.style.color = 'green';
+      console.log('Email subtask created successfully:', response.data);
+    } else {
+      addingStatus.textContent = '❌ Failed to create subtask: ' + response.error;
+      addingStatus.style.color = 'red';
+      console.error('Failed to create subtask:', response.error);
+    }
+  } catch (error) {
+    console.error('Error creating subtask:', error);
+    addingStatus.textContent = '❌ Error creating subtask: ' + error.message;
+    addingStatus.style.color = 'red';
+  } finally {
+    addAsSubtaskBtn.disabled = false;
+    addAsSubtaskBtn.textContent = 'Add Email as Subtask';
   }
 }
 

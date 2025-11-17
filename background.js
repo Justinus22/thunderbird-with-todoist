@@ -384,6 +384,108 @@ async function getLabels() {
   }
 }
 
+// Create email as subtask with attachments
+async function createEmailSubtask(parentTaskId, emailSubject, emailBody, attachments = []) {
+  const token = await getTodoistToken();
+  
+  if (!token) {
+    return { success: false, error: 'No API token found' };
+  }
+  
+  if (!parentTaskId || !emailSubject) {
+    return { success: false, error: 'Parent task ID and email subject are required' };
+  }
+  
+  try {
+    // Create subtask with "*" prefix for Todoist task recognition
+    const taskContent = `* ${emailSubject}`;
+    
+    const taskResponse = await fetch(`${TODOIST_API_BASE}/tasks`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        content: taskContent,
+        description: emailBody || '',
+        parent_id: parentTaskId,
+        priority: 1
+      })
+    });
+    
+    if (!taskResponse.ok) {
+      const errorText = await taskResponse.text();
+      console.error('Failed to create subtask:', errorText);
+      return { success: false, error: `Failed to create subtask: ${errorText}` };
+    }
+    
+    const subtask = await taskResponse.json();
+    console.log('Subtask created successfully:', subtask.id);
+    
+    // Add attachments as comments to the subtask
+    const attachmentResults = [];
+    for (const attachment of attachments) {
+      const commentResult = await addAttachmentComment(subtask.id, attachment);
+      attachmentResults.push(commentResult);
+    }
+    
+    return { 
+      success: true, 
+      data: {
+        subtask: subtask,
+        attachments: attachmentResults
+      }
+    };
+  } catch (error) {
+    console.error('Error creating email subtask:', error);
+    return { success: false, error: error.message };
+  }
+}
+
+// Add attachment as comment to a task
+async function addAttachmentComment(taskId, attachment) {
+  const token = await getTodoistToken();
+  
+  if (!token) {
+    return { success: false, error: 'No API token found' };
+  }
+  
+  try {
+    const response = await fetch(`${TODOIST_API_BASE}/comments`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        task_id: taskId,
+        content: `Attachment: ${attachment.name}`,
+        attachment: {
+          file_name: attachment.name,
+          file_url: attachment.url || '',
+          file_type: attachment.type || 'application/octet-stream',
+          file_size: attachment.size || 0,
+          resource_type: 'file'
+        }
+      })
+    });
+    
+    if (response.ok) {
+      const comment = await response.json();
+      console.log('Attachment comment added successfully:', comment.id);
+      return { success: true, data: comment };
+    } else {
+      const errorText = await response.text();
+      console.error('Failed to add attachment comment:', errorText);
+      return { success: false, error: `Failed to add attachment comment: ${errorText}` };
+    }
+  } catch (error) {
+    console.error('Error adding attachment comment:', error);
+    return { success: false, error: error.message };
+  }
+}
+
 async function addEmailComment(taskId, content) {
   const token = await getTodoistToken();
   
@@ -531,6 +633,12 @@ browser.runtime.onMessage.addListener(async (message, sender, sendResponse) => {
         console.log('Tasks result:', tasksResult.success ? `${tasksResult.data.length} tasks` : tasksResult.error);
         return tasksResult;
 
+      case 'GET_TASKS':
+        console.log('Getting tasks for project:', message.projectId || 'all');
+        const projectTasksResult = await getAllTasks(message.projectId ? { project_id: message.projectId } : {});
+        console.log('Project tasks result:', projectTasksResult.success ? `${projectTasksResult.data.length} tasks` : projectTasksResult.error);
+        return projectTasksResult;
+
       case 'GET_PROJECTS':
         console.log('Getting projects...');
         const projectsResult = await getProjects();
@@ -557,6 +665,20 @@ browser.runtime.onMessage.addListener(async (message, sender, sendResponse) => {
         const commentResult = await addEmailComment(message.taskId, message.content);
         console.log('Comment result:', commentResult.success ? 'added successfully' : commentResult.error);
         return commentResult;
+
+      case 'CREATE_EMAIL_SUBTASK':
+        console.log('Creating email subtask for parent task:', message.parentTaskId);
+        if (!message.parentTaskId || !message.emailSubject) {
+          return { success: false, error: 'Parent task ID and email subject are required' };
+        }
+        const subtaskResult = await createEmailSubtask(
+          message.parentTaskId, 
+          message.emailSubject, 
+          message.emailBody, 
+          message.attachments || []
+        );
+        console.log('Subtask result:', subtaskResult.success ? 'created successfully' : subtaskResult.error);
+        return subtaskResult;
         
       default:
         console.warn('Unknown message type:', message.type);

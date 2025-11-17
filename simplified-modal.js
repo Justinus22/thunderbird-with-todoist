@@ -77,10 +77,10 @@ async function attachEmailToTask() {
     return;
   }
   
-  const attachBtn = document.getElementById('attachToTask');
+  const attachBtn = document.getElementById('attachEmailBtn');
   if (attachBtn) {
     attachBtn.disabled = true;
-    attachBtn.innerHTML = '<span class="loading-spinner"></span>Attaching...';
+    attachBtn.innerHTML = '<span class="loading-spinner"></span>Creating Subtask...';
   }
   
   try {
@@ -90,31 +90,30 @@ async function attachEmailToTask() {
       updateStatus('No email found to attach', 'error');
       return;
     }
-    
-    // Format email content for Todoist
-    const emailContent = formatEmailForTodoist(message);
-    
-    // Send to background script
+
+    // Send to background script to create subtask
     const response = await browser.runtime.sendMessage({
-      type: 'ADD_EMAIL_COMMENT',
-      taskId: selectedTask.id,
-      content: emailContent
+      type: 'CREATE_EMAIL_SUBTASK',
+      parentTaskId: selectedTask.id,
+      emailSubject: message.subject || 'No Subject',
+      emailBody: message.body || '',
+      attachments: message.attachments || []
     });
-    
+
     if (response.success) {
-      updateStatus(`Email attached to "${selectedTask.content}" successfully!`, 'success');
+      updateStatus(`Email added as subtask to "${selectedTask.content}" successfully!`, 'success');
       // Reset selection
       clearTaskSelection();
     } else {
-      updateStatus(`Failed to attach email: ${response.error}`, 'error');
+      updateStatus(`Failed to create subtask: ${response.error}`, 'error');
     }
   } catch (error) {
-    console.error('Error attaching email:', error);
-    updateStatus('Failed to attach email', 'error');
+    console.error('Error creating subtask:', error);
+    updateStatus('Failed to create subtask', 'error');
   } finally {
     if (attachBtn) {
       attachBtn.disabled = true; // Will be re-enabled when task is selected
-      attachBtn.innerHTML = 'Attach Email';
+      attachBtn.innerHTML = 'Add Email as Subtask';
     }
   }
 }
@@ -331,7 +330,7 @@ function buildTaskInterface() {
           <p>No task selected</p>
         </div>
         <button id="attachEmailBtn" class="attach-email-btn" disabled>
-          Attach Email to Task
+          Add Email as Subtask
         </button>
       </div>
     </div>
@@ -527,36 +526,36 @@ async function attachEmailToSelectedTask() {
   }
   
   try {
-    updateStatus('Attaching email to task...', 'info');
+    updateStatus('Creating subtask from email...', 'info');
     
     // Get current email content
-    const response = await browser.runtime.sendMessage({action: 'GET_CURRENT_MESSAGE'});
+    const response = await browser.runtime.sendMessage({type: 'GET_CURRENT_MESSAGE'});
     if (!response.success || !response.message) {
       updateStatus('No email selected', 'error');
       return;
     }
-    
-    const emailContent = formatEmailForTodoist(response.message);
-    
-    // Add comment to the selected task
-    const commentResponse = await browser.runtime.sendMessage({
-      action: 'ADD_EMAIL_COMMENT',
-      taskId: selectedTask.id,
-      content: emailContent
+
+    // Create subtask from email
+    const subtaskResponse = await browser.runtime.sendMessage({
+      type: 'CREATE_EMAIL_SUBTASK',
+      parentTaskId: selectedTask.id,
+      emailSubject: response.message.subject || 'No Subject',
+      emailBody: response.message.body || '',
+      attachments: response.message.attachments || []
     });
     
-    if (commentResponse.success) {
-      updateStatus('Email attached successfully!', 'success');
+    if (subtaskResponse.success) {
+      updateStatus('Email added as subtask successfully!', 'success');
       setTimeout(() => {
         updateStatus('', 'info');
       }, 3000);
     } else {
-      updateStatus(`Failed to attach email: ${commentResponse.error}`, 'error');
+      updateStatus(`Failed to create subtask: ${subtaskResponse.error}`, 'error');
     }
     
   } catch (error) {
-    console.error('Error attaching email:', error);
-    updateStatus('Error attaching email', 'error');
+    console.error('Error creating subtask:', error);
+    updateStatus('Error creating subtask', 'error');
   }
 }
 

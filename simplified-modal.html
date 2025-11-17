@@ -2,7 +2,7 @@
 <html>
 <head>
   <meta charset="utf-8">
-  <title>Todoist Integration</title>
+  <title>Todoist Tasks</title>
   <style>
     * {
       margin: 0;
@@ -12,294 +12,284 @@
     
     body {
       font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-      background: #f8f9fa;
-      padding: 0;
-      margin: 0;
+      background: #1e1e1e;
+      color: #ffffff;
       width: 350px;
       min-height: 400px;
+      max-height: 600px;
+      overflow: hidden;
     }
     
-    .main-container {
-      background: white;
-      width: 100%;
-      height: 100vh;
-      overflow-y: auto;
-    }
-    
-    .header {
-      background: #db4c3f;
-      color: white;
-      padding: 16px;
-      display: flex;
-      align-items: center;
-    }
-    
-    .logo {
-      width: 32px;
-      height: 32px;
-      margin-right: 12px;
-      background: rgba(255, 255, 255, 0.2);
-      border-radius: 6px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      color: white;
-      font-weight: bold;
-      font-size: 16px;
-    }
-    
-    .header h1 {
-      font-size: 20px;
-      font-weight: 600;
-    }
-    
-    .body {
-      padding: 20px;
-    }
-    
+    /* Setup Section */
     .setup-section {
+      padding: 20px;
       text-align: center;
     }
     
     .setup-section h2 {
-      font-size: 24px;
+      font-size: 18px;
       margin-bottom: 16px;
-      color: #333;
+      color: #ffffff;
     }
     
     .setup-section p {
-      font-size: 16px;
-      color: #666;
-      margin-bottom: 24px;
-      line-height: 1.5;
-    }
-    
-    .connected-section {
-      display: none;
-    }
-    
-    .connected-section.active {
-      display: block;
-    }
-    
-    .setup-section.hidden {
-      display: none;
-    }
-    
-    .status {
-      padding: 16px;
-      border-radius: 8px;
-      margin-bottom: 20px;
       font-size: 14px;
-      font-weight: 500;
-    }
-    
-    .status.success {
-      background: #d4edda;
-      color: #155724;
-      border: 1px solid #c3e6cb;
-    }
-    
-    .status.error {
-      background: #f8d7da;
-      color: #721c24;
-      border: 1px solid #f5c6cb;
-    }
-    
-    .status.info {
-      background: #d1ecf1;
-      color: #0c5460;
-      border: 1px solid #bee5eb;
-    }
-    
-    .btn {
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      padding: 14px 28px;
-      border: none;
-      border-radius: 8px;
-      cursor: pointer;
-      font-size: 16px;
-      font-weight: 500;
-      text-decoration: none;
-      transition: all 0.2s ease;
-      min-width: 180px;
-    }
-    
-    .btn:disabled {
-      opacity: 0.6;
-      cursor: not-allowed;
-    }
-    
-    .btn-primary {
-      background: #db4c3f;
-      color: white;
-    }
-    
-    .btn-primary:hover:not(:disabled) {
-      background: #c23616;
-      transform: translateY(-1px);
-    }
-    
-    .btn-secondary {
-      background: #f8f9fa;
-      color: #333;
-      border: 2px solid #e9ecef;
-      margin-left: 12px;
-    }
-    
-    .btn-secondary:hover:not(:disabled) {
-      background: #e9ecef;
-      transform: translateY(-1px);
-    }
-    
-    .email-info {
-      background: #f8f9fa;
-      border: 2px solid #e9ecef;
-      border-radius: 8px;
-      padding: 20px;
+      color: #cccccc;
       margin-bottom: 20px;
-    }
-    
-    .email-item {
-      margin-bottom: 10px;
-      font-size: 14px;
       line-height: 1.4;
     }
     
-    .email-item:last-child {
-      margin-bottom: 0;
+    .btn {
+      background: #db4c3f;
+      color: white;
+      border: none;
+      padding: 10px 16px;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 14px;
+      font-weight: 500;
+      transition: background-color 0.2s;
     }
     
-    .email-item strong {
-      color: #333;
-      font-weight: 600;
+    .btn:hover {
+      background: #c23e31;
     }
     
-    .button-group {
+    .btn:disabled {
+      background: #666;
+      cursor: not-allowed;
+    }
+    
+    .btn-secondary {
+      background: #4a4a4a;
+      color: #ffffff;
+    }
+    
+    .btn-secondary:hover {
+      background: #5a5a5a;
+    }
+    
+    /* Task Interface */
+    .task-interface {
+      display: flex;
+      flex-direction: column;
+      height: 100vh;
+    }
+    
+    .search-filters {
+      padding: 12px;
+      background: #2a2a2a;
+      border-bottom: 1px solid #404040;
+    }
+    
+    .search-container {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 8px;
+    }
+    
+    .search-input {
+      flex: 1;
+      padding: 8px;
+      border: 1px solid #404040;
+      border-radius: 4px;
+      background: #1e1e1e;
+      color: #ffffff;
+      font-size: 14px;
+    }
+    
+    .search-input::placeholder {
+      color: #888;
+    }
+    
+    .clear-filters-btn {
+      padding: 8px 12px;
+      background: #4a4a4a;
+      color: #ffffff;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 12px;
+    }
+    
+    .filter-row {
+      display: flex;
+      gap: 8px;
+    }
+    
+    .filter-select {
+      flex: 1;
+      padding: 6px;
+      border: 1px solid #404040;
+      border-radius: 4px;
+      background: #1e1e1e;
+      color: #ffffff;
+      font-size: 12px;
+    }
+    
+    .task-list-container {
+      flex: 1;
+      overflow-y: auto;
+      background: #1e1e1e;
+    }
+    
+    .task-list {
+      padding: 0;
+    }
+    
+    .task-item {
+      padding: 12px;
+      border-bottom: 1px solid #333333;
+      cursor: pointer;
+      transition: background-color 0.2s;
+    }
+    
+    .task-item:hover {
+      background: #2a2a2a;
+    }
+    
+    .task-item.selected {
+      background: #404040;
+      border-left: 3px solid #db4c3f;
+    }
+    
+    .task-content {
+      font-size: 14px;
+      font-weight: 500;
+      margin-bottom: 4px;
+      line-height: 1.3;
+    }
+    
+    .task-meta {
+      font-size: 12px;
+      color: #888888;
       display: flex;
       gap: 12px;
-      margin-top: 20px;
-      justify-content: center;
-      flex-wrap: wrap;
     }
     
-    .hidden {
-      display: none;
+    .task-labels {
+      color: #66bb6a;
     }
     
-    .loading-spinner {
-      display: inline-block;
-      width: 16px;
-      height: 16px;
-      border: 2px solid #f3f3f3;
+    .task-due {
+      color: #ff9800;
+    }
+    
+    .selected-task-area {
+      padding: 12px;
+      background: #2a2a2a;
+      border-top: 1px solid #404040;
+    }
+    
+    .selected-task {
+      margin-bottom: 12px;
+      padding: 8px;
+      background: #1e1e1e;
+      border: 1px solid #404040;
+      border-radius: 4px;
+      font-size: 13px;
+    }
+    
+    .selected-task p {
+      color: #cccccc;
+    }
+    
+    .selected-task-info h4 {
+      font-size: 14px;
+      margin-bottom: 4px;
+      color: #ffffff;
+    }
+    
+    .task-description {
+      font-size: 12px;
+      color: #aaaaaa;
+      margin-bottom: 6px;
+    }
+    
+    .task-meta span {
+      margin-right: 12px;
+    }
+    
+    .attach-email-btn {
+      width: 100%;
+      background: #db4c3f;
+      color: white;
+      border: none;
+      padding: 10px;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 14px;
+      font-weight: 500;
+    }
+    
+    .attach-email-btn:disabled {
+      background: #666666;
+      cursor: not-allowed;
+    }
+    
+    .attach-email-btn:hover:not(:disabled) {
+      background: #c23e31;
+    }
+    
+    .loading {
+      padding: 40px;
+      text-align: center;
+      color: #888888;
+    }
+    
+    .spinner {
+      border: 2px solid #333333;
       border-top: 2px solid #db4c3f;
       border-radius: 50%;
+      width: 20px;
+      height: 20px;
       animation: spin 1s linear infinite;
-      margin-right: 8px;
+      margin: 0 auto 12px;
     }
     
     @keyframes spin {
       0% { transform: rotate(0deg); }
       100% { transform: rotate(360deg); }
     }
-
-    /* Dark mode support */
-    @media (prefers-color-scheme: dark) {
-      body {
-        background: #1a1a1a;
-        color: #ffffff;
-      }
-      
-      .main-container {
-        background: #2d2d2d;
-        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
-      }
-      
-      .setup-section h2 {
-        color: #ffffff;
-      }
-      
-      .setup-section p {
-        color: #cccccc;
-      }
-      
-      .btn-secondary {
-        background: #404040;
-        color: #ffffff;
-        border-color: #555555;
-      }
-      
-      .btn-secondary:hover:not(:disabled) {
-        background: #555555;
-      }
-      
-      .email-info {
-        background: #404040;
-        border-color: #555555;
-        color: #ffffff;
-      }
-      
-      .email-item strong {
-        color: #ffffff;
-      }
-      
-      .status.success {
-        background: #1a5a1a;
-        color: #90ee90;
-        border-color: #2d7a2d;
-      }
-      
-      .status.error {
-        background: #5a1a1a;
-        color: #ff9090;
-        border-color: #7a2d2d;
-      }
-      
-      .status.info {
-        background: #1a3a5a;
-        color: #90d7ff;
-        border-color: #2d5a7a;
-      }
+    
+    .status {
+      padding: 8px 12px;
+      margin: 8px 12px;
+      border-radius: 4px;
+      font-size: 12px;
+      text-align: center;
+    }
+    
+    .status.success {
+      background: #2e7d32;
+      color: #ffffff;
+    }
+    
+    .status.error {
+      background: #d32f2f;
+      color: #ffffff;
+    }
+    
+    .status.info {
+      background: #1976d2;
+      color: #ffffff;
+    }
+    
+    .hidden {
+      display: none;
     }
   </style>
 </head>
 <body>
-  <div class="main-container">
-    <div class="header">
-      <div class="logo">T</div>
-      <h1>Todoist Integration</h1>
-    </div>
-    
-    <div class="body">
-      <!-- Setup section - shown when not configured -->
-      <div id="setupSection" class="setup-section">
-        <h2>Setup Required</h2>
-        <p>To get started, you need to configure your Todoist API connection.</p>
-        <button id="openConfigBtn" class="btn btn-primary">Open Configuration</button>
-      </div>
-      
-      <!-- Connected section - shown when configured and working -->
-      <div id="connectedSection" class="connected-section">
-        <div id="status" class="status info hidden">Loading...</div>
-        
-        <div id="emailSection">
-          <h2 style="margin-bottom: 16px; color: #333;">Current Email</h2>
-          <div id="emailInfo" class="email-info">
-            <div class="loading-spinner"></div>
-            Loading email information...
-          </div>
-        </div>
-        
-        <div class="button-group">
-          <button id="refreshEmail" class="btn btn-secondary">Refresh Email</button>
-          <button id="addToTodoist" class="btn btn-primary">Add to Todoist</button>
-          <button id="openSettings" class="btn btn-secondary">Settings</button>
-        </div>
-      </div>
-    </div>
+  <!-- Setup section for when no token is configured -->
+  <div id="setupSection" class="setup-section">
+    <h2>Setup Required</h2>
+    <p>Configure your Todoist API token to get started.</p>
+    <button id="openConfigBtn" class="btn">Open Settings</button>
   </div>
+  
+  <!-- Main content area - this is where the task interface will be loaded -->
+  <div id="main-content"></div>
   
   <script src="simplified-modal.js"></script>
 </body>

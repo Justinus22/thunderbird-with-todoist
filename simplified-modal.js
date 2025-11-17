@@ -28,42 +28,25 @@ function setupEventListeners() {
   if (openConfigBtn) {
     openConfigBtn.addEventListener('click', openConfigurationPage);
   }
-  
-  // Connected section
-  const refreshEmailBtn = document.getElementById('refreshEmail');
-  if (refreshEmailBtn) {
-    refreshEmailBtn.addEventListener('click', refreshEmailInfo);
-  }
-  
-  const addToTodoistBtn = document.getElementById('addToTodoist');
-  if (addToTodoistBtn) {
-    addToTodoistBtn.addEventListener('click', addEmailToTodoist);
-  }
-  
-  const openSettingsBtn = document.getElementById('openSettings');
-  if (openSettingsBtn) {
-    openSettingsBtn.addEventListener('click', openConfigurationPage);
-  }
 }
 
 // Show the setup interface (when not configured)
 function showSetupInterface() {
-  document.getElementById('setupSection').classList.remove('hidden');
-  document.getElementById('connectedSection').classList.remove('active');
+  document.getElementById('setupSection').style.display = 'block';
+  document.getElementById('main-content').innerHTML = '';
 }
 
 // Show the connected interface (when token exists)
 async function showConnectedInterface() {
-  document.getElementById('setupSection').classList.add('hidden');
-  document.getElementById('connectedSection').classList.add('active');
+  document.getElementById('setupSection').style.display = 'none';
   
   // Test the connection first
   const isConnected = await testTodoistConnection();
   if (isConnected) {
-    await loadEmailInformation();
+    await loadTaskInterface();
   } else {
     // Connection failed, show setup again
-    updateStatus('Connection to Todoist failed. Please reconfigure.', 'error');
+    document.getElementById('main-content').innerHTML = '<div class="status error">Connection to Todoist failed. Please reconfigure.</div>';
     setTimeout(() => {
       showSetupInterface();
     }, 3000);
@@ -76,7 +59,7 @@ async function openConfigurationPage() {
     console.log('Opening configuration page as tab');
     
     const newTab = await browser.tabs.create({
-      url: browser.runtime.getURL('config.html'),
+      url: browser.runtime.getURL('config/config.html'),
       active: true
     });
     
@@ -87,37 +70,53 @@ async function openConfigurationPage() {
   }
 }
 
-async function refreshEmailInfo() {
-  const refreshBtn = document.getElementById('refreshEmail');
-  if (refreshBtn) {
-    refreshBtn.disabled = true;
-    refreshBtn.innerHTML = '<span class="loading-spinner"></span>Refreshing...';
+async function attachEmailToTask() {
+  const selectedTask = getSelectedTask();
+  if (!selectedTask) {
+    updateStatus('Please select a task first', 'error');
+    return;
   }
   
-  await loadEmailInformation();
-  
-  if (refreshBtn) {
-    refreshBtn.disabled = false;
-    refreshBtn.innerHTML = 'Refresh Email';
-  }
-}
-
-async function addEmailToTodoist() {
-  const addBtn = document.getElementById('addToTodoist');
-  if (addBtn) {
-    addBtn.disabled = true;
-    addBtn.innerHTML = '<span class="loading-spinner"></span>Adding...';
+  const attachBtn = document.getElementById('attachToTask');
+  if (attachBtn) {
+    attachBtn.disabled = true;
+    attachBtn.innerHTML = '<span class="loading-spinner"></span>Attaching...';
   }
   
-  // TODO: Implement actual Todoist task creation
-  updateStatus('Adding to Todoist is coming soon!', 'info');
-  
-  setTimeout(() => {
-    if (addBtn) {
-      addBtn.disabled = false;
-      addBtn.innerHTML = 'Add to Todoist';
+  try {
+    // Get current email
+    const message = await getCurrentMessage();
+    if (!message) {
+      updateStatus('No email found to attach', 'error');
+      return;
     }
-  }, 2000);
+    
+    // Format email content for Todoist
+    const emailContent = formatEmailForTodoist(message);
+    
+    // Send to background script
+    const response = await browser.runtime.sendMessage({
+      type: 'ADD_EMAIL_COMMENT',
+      taskId: selectedTask.id,
+      content: emailContent
+    });
+    
+    if (response.success) {
+      updateStatus(`Email attached to "${selectedTask.content}" successfully!`, 'success');
+      // Reset selection
+      clearTaskSelection();
+    } else {
+      updateStatus(`Failed to attach email: ${response.error}`, 'error');
+    }
+  } catch (error) {
+    console.error('Error attaching email:', error);
+    updateStatus('Failed to attach email', 'error');
+  } finally {
+    if (attachBtn) {
+      attachBtn.disabled = true; // Will be re-enabled when task is selected
+      attachBtn.innerHTML = 'Attach Email';
+    }
+  }
 }
 
 // API functions
@@ -170,54 +169,15 @@ async function testTodoistConnection() {
     }
   } catch (error) {
     console.error('Network error:', error);
-    updateStatus(`Connection failed: ${error.message}`, 'error');
     return false;
   }
 }
 
-async function loadEmailInformation() {
-  const emailInfo = document.getElementById('emailInfo');
-  
-  try {
-    emailInfo.innerHTML = '<div class="loading-spinner"></div>Loading email information...';
-    
-    // Get current email message
-    const message = await getCurrentMessage();
-    
-    if (message) {
-      console.log('Loaded email message:', message.subject);
-      
-      emailInfo.innerHTML = `
-        <div class="email-item">
-          <strong>Subject:</strong> ${escapeHtml(message.subject || 'No Subject')}
-        </div>
-        <div class="email-item">
-          <strong>From:</strong> ${escapeHtml(message.author || 'Unknown')}
-        </div>
-        <div class="email-item">
-          <strong>Date:</strong> ${message.date ? new Date(message.date).toLocaleString() : 'Unknown'}
-        </div>
-        <div class="email-item">
-          <strong>ID:</strong> ${message.id || 'Unknown'}
-        </div>
-      `;
-    } else {
-      emailInfo.innerHTML = `
-        <div class="email-item">
-          <strong>No email selected</strong><br>
-          Please select an email in Thunderbird and try again.
-        </div>
-      `;
-    }
-  } catch (error) {
-    console.error('Error loading email info:', error);
-    emailInfo.innerHTML = `
-      <div class="email-item">
-        <strong>Error:</strong> Failed to load email information<br>
-        ${escapeHtml(error.message)}
-      </div>
-    `;
-  }
+// Utility function for HTML escaping
+function escapeHtml(text) {
+  const div = document.createElement('div');
+  div.textContent = text;
+  return div.innerHTML;
 }
 
 async function getCurrentMessage() {
@@ -277,10 +237,458 @@ function updateStatus(message, type = 'info') {
   }
 }
 
-function escapeHtml(text) {
-  const div = document.createElement('div');
-  div.textContent = text;
-  return div.innerHTML;
+// Task interface functions
+let allTasks = [];
+let allProjects = [];
+let allLabels = [];
+let filteredTasks = [];
+let selectedTask = null;
+
+async function loadTaskInterface() {
+  try {
+    // Clear existing content
+    document.getElementById('main-content').innerHTML = `
+      <div class="loading">
+        <div class="spinner"></div>
+        Loading tasks...
+      </div>
+    `;
+    
+    console.log('Loading task interface - fetching data...');
+    
+    // Get all data in parallel
+    const [tasksResponse, sectionsResponse, labelsResponse] = await Promise.all([
+      browser.runtime.sendMessage({action: 'GET_ALL_TASKS'}),
+      browser.runtime.sendMessage({action: 'GET_SECTIONS'}),
+      browser.runtime.sendMessage({action: 'GET_LABELS'})
+    ]);
+    
+    console.log('API Responses:', { tasksResponse, sectionsResponse, labelsResponse });
+    
+    allTasks = tasksResponse.success ? tasksResponse.data : [];
+    filteredTasks = [...allTasks];
+    allSections = sectionsResponse.success ? sectionsResponse.data : [];
+    allLabels = labelsResponse.success ? labelsResponse.data : [];
+    
+    console.log('Loaded data:', { 
+      tasks: allTasks.length, 
+      sections: allSections.length, 
+      labels: allLabels.length 
+    });
+    
+    // Build the task interface
+    document.getElementById('main-content').innerHTML = buildTaskInterface();
+    
+    // Load projects and populate filters after building interface 
+    await loadProjects();
+    populateLabelFilter();
+    
+    // Set up event listeners
+    document.getElementById('taskSearch').addEventListener('input', debounce(handleTaskSearch, 300));
+    document.getElementById('projectFilter').addEventListener('change', handleFilterChange);
+    document.getElementById('labelFilter').addEventListener('change', handleFilterChange);
+    document.getElementById('clearFilters').addEventListener('click', clearAllFilters);
+    document.getElementById('attachEmailBtn').addEventListener('click', attachEmailToSelectedTask);
+    
+    // Load saved filters and apply them
+    await loadSavedFilters();
+    applyFiltersAndDisplay();
+    
+    console.log('Task interface loaded successfully');
+    
+  } catch (error) {
+    console.error('Error loading task interface:', error);
+    document.getElementById('main-content').innerHTML = '<div class="status error">Error loading tasks. Please try again.</div>';
+  }
+}
+
+function buildTaskInterface() {
+  return `
+    <div class="task-interface">
+      <div id="status" class="status info hidden"></div>
+      
+      <div class="search-filters">
+        <div class="search-container">
+          <input type="text" id="taskSearch" placeholder="Search tasks..." class="search-input">
+          <button id="clearFilters" class="clear-filters-btn">Clear</button>
+        </div>
+        <div class="filter-row">
+          <select id="projectFilter" class="filter-select">
+            <option value="">All Projects</option>
+          </select>
+          <select id="labelFilter" class="filter-select">
+            <option value="">All Labels</option>
+          </select>
+        </div>
+      </div>
+      
+      <div class="task-list-container">
+        <div id="taskList" class="task-list"></div>
+      </div>
+      
+      <div class="selected-task-area">
+        <div id="selectedTaskDisplay" class="selected-task">
+          <p>No task selected</p>
+        </div>
+        <button id="attachEmailBtn" class="attach-email-btn" disabled>
+          Attach Email to Task
+        </button>
+      </div>
+    </div>
+  `;
+}
+
+async function loadProjects() {
+  try {
+    // Get projects from background script
+    const response = await browser.runtime.sendMessage({action: 'GET_PROJECTS'});
+    if (response && response.success) {
+      allProjects = response.projects || [];
+    } else {
+      // Fallback: extract unique projects from tasks
+      const projectMap = new Map();
+      allTasks.forEach(task => {
+        if (task.project_id && !projectMap.has(task.project_id)) {
+          projectMap.set(task.project_id, {
+            id: task.project_id,
+            name: `Project ${task.project_id}` // Will be replaced with actual names when available
+          });
+        }
+      });
+      allProjects = Array.from(projectMap.values());
+    }
+    
+    populateProjectFilter();
+  } catch (error) {
+    console.error('Error loading projects:', error);
+    // Fallback: extract from tasks
+    const projectMap = new Map();
+    allTasks.forEach(task => {
+      if (task.project_id && !projectMap.has(task.project_id)) {
+        projectMap.set(task.project_id, {
+          id: task.project_id,
+          name: `Project ${task.project_id}`
+        });
+      }
+    });
+    allProjects = Array.from(projectMap.values());
+    populateProjectFilter();
+  }
+}
+
+function populateProjectFilter() {
+  const projectFilter = document.getElementById('projectFilter');
+  if (!projectFilter) return;
+  
+  // Clear existing options except "All Projects"
+  projectFilter.innerHTML = '<option value="">All Projects</option>';
+  
+  allProjects.forEach(project => {
+    const option = document.createElement('option');
+    option.value = project.id;
+    option.textContent = project.name;
+    projectFilter.appendChild(option);
+  });
+}
+
+function populateLabelFilter() {
+  const labelFilter = document.getElementById('labelFilter');
+  if (!labelFilter) return;
+  
+  // Clear existing options except "All Labels"
+  labelFilter.innerHTML = '<option value="">All Labels</option>';
+  
+  allLabels.forEach(label => {
+    const option = document.createElement('option');
+    option.value = label.name;
+    option.textContent = label.name;
+    labelFilter.appendChild(option);
+  });
+}
+
+function displayTasks(tasks) {
+  const taskList = document.getElementById('taskList');
+  if (!taskList) return;
+  
+  if (tasks.length === 0) {
+    taskList.innerHTML = '<div style="padding: 20px; text-align: center; color: #666;">No tasks found</div>';
+    return;
+  }
+  
+  taskList.innerHTML = '';
+  
+  tasks.forEach(task => {
+    const taskItem = createTaskElement(task);
+    taskList.appendChild(taskItem);
+  });
+}
+
+function createTaskElement(task) {
+  const taskItem = document.createElement('div');
+  taskItem.className = 'task-item';
+  taskItem.dataset.taskId = task.id;
+  
+  // Format due date
+  let dueDateText = '';
+  if (task.due && task.due.date) {
+    const dueDate = new Date(task.due.date);
+    const today = new Date();
+    const diffDays = Math.ceil((dueDate - today) / (1000 * 60 * 60 * 24));
+    
+    if (diffDays < 0) {
+      dueDateText = `<span class="task-due">Overdue</span>`;
+    } else if (diffDays === 0) {
+      dueDateText = `<span class="task-due">Today</span>`;
+    } else if (diffDays === 1) {
+      dueDateText = `<span class="task-due">Tomorrow</span>`;
+    } else if (diffDays <= 7) {
+      dueDateText = `Due in ${diffDays} days`;
+    }
+  }
+  
+  taskItem.innerHTML = `
+    <div class="task-title">${escapeHtml(task.content)}</div>
+    <div class="task-meta">
+      <span class="task-project">Project ${task.project_id}</span>
+      ${dueDateText}
+      ${task.labels && task.labels.length > 0 ? 
+        '<span>' + task.labels.map(label => `#${label}`).join(' ') + '</span>' : ''}
+    </div>
+  `;
+  
+  taskItem.addEventListener('click', () => selectTask(task));
+  
+  return taskItem;
+}
+
+function selectTask(task) {
+  // Clear previous selection
+  document.querySelectorAll('.task-item').forEach(item => {
+    item.classList.remove('selected');
+  });
+  
+  // Select new task
+  const taskElement = document.querySelector(`[data-task-id="${task.id}"]`);
+  if (taskElement) {
+    taskElement.classList.add('selected');
+  }
+  
+  selectedTask = task;
+  
+  // Update selected task display
+  const selectedDisplay = document.getElementById('selectedTaskDisplay');
+  if (selectedDisplay) {
+    selectedDisplay.innerHTML = `
+      <div class="selected-task-info">
+        <h4>${task.content}</h4>
+        ${task.description ? `<p class="task-description">${task.description}</p>` : ''}
+        <div class="task-meta">
+          ${task.labels && task.labels.length > 0 ? 
+            `<span class="task-labels">${task.labels.join(', ')}</span>` : ''}
+          ${task.due ? `<span class="task-due">Due: ${new Date(task.due.date).toLocaleDateString()}</span>` : ''}
+        </div>
+      </div>
+    `;
+  }
+  
+  // Enable attach button
+  const attachBtn = document.getElementById('attachEmailBtn');
+  if (attachBtn) {
+    attachBtn.disabled = false;
+  }
+}
+
+function getSelectedTask() {
+  return selectedTask;
+}
+
+function clearTaskSelection() {
+  selectedTask = null;
+  
+  document.querySelectorAll('.task-item').forEach(item => {
+    item.classList.remove('selected');
+  });
+  
+  const selectedDisplay = document.getElementById('selectedTaskDisplay');
+  if (selectedDisplay) {
+    selectedDisplay.innerHTML = '<p>No task selected</p>';
+  }
+  
+  const attachBtn = document.getElementById('attachEmailBtn');
+  if (attachBtn) {
+    attachBtn.disabled = true;
+  }
+}
+
+async function attachEmailToSelectedTask() {
+  if (!selectedTask) {
+    updateStatus('No task selected', 'error');
+    return;
+  }
+  
+  try {
+    updateStatus('Attaching email to task...', 'info');
+    
+    // Get current email content
+    const response = await browser.runtime.sendMessage({action: 'GET_CURRENT_MESSAGE'});
+    if (!response.success || !response.message) {
+      updateStatus('No email selected', 'error');
+      return;
+    }
+    
+    const emailContent = formatEmailForTodoist(response.message);
+    
+    // Add comment to the selected task
+    const commentResponse = await browser.runtime.sendMessage({
+      action: 'ADD_EMAIL_COMMENT',
+      taskId: selectedTask.id,
+      content: emailContent
+    });
+    
+    if (commentResponse.success) {
+      updateStatus('Email attached successfully!', 'success');
+      setTimeout(() => {
+        updateStatus('', 'info');
+      }, 3000);
+    } else {
+      updateStatus(`Failed to attach email: ${commentResponse.error}`, 'error');
+    }
+    
+  } catch (error) {
+    console.error('Error attaching email:', error);
+    updateStatus('Error attaching email', 'error');
+  }
+}
+
+function handleTaskSearch() {
+  const searchTerm = document.getElementById('taskSearch').value.toLowerCase();
+  applyFiltersAndDisplay();
+}
+
+function handleFilterChange() {
+  saveCurrentFilters();
+  applyFiltersAndDisplay();
+}
+
+function clearAllFilters() {
+  document.getElementById('taskSearch').value = '';
+  document.getElementById('projectFilter').value = '';
+  document.getElementById('labelFilter').value = '';
+  
+  clearSavedFilters();
+  applyFiltersAndDisplay();
+}
+
+async function loadSavedFilters() {
+  try {
+    const result = await browser.storage.local.get('taskFilters');
+    const savedFilters = result.taskFilters || {};
+    
+    // Apply saved filters to UI (but not search - that's not persistent)
+    if (savedFilters.projectId) {
+      const projectFilter = document.getElementById('projectFilter');
+      if (projectFilter) projectFilter.value = savedFilters.projectId;
+    }
+    
+    if (savedFilters.label) {
+      const labelFilter = document.getElementById('labelFilter');
+      if (labelFilter) labelFilter.value = savedFilters.label;
+    }
+    
+    console.log('Loaded saved filters:', savedFilters);
+  } catch (error) {
+    console.error('Error loading saved filters:', error);
+  }
+}
+
+async function saveCurrentFilters() {
+  try {
+    const filters = {
+      projectId: document.getElementById('projectFilter').value,
+      label: document.getElementById('labelFilter').value
+      // Note: search is not persisted as per requirements
+    };
+    
+    await browser.storage.local.set({ taskFilters: filters });
+    console.log('Saved filters:', filters);
+  } catch (error) {
+    console.error('Error saving filters:', error);
+  }
+}
+
+async function clearSavedFilters() {
+  try {
+    await browser.storage.local.remove('taskFilters');
+    console.log('Cleared saved filters');
+  } catch (error) {
+    console.error('Error clearing filters:', error);
+  }
+}
+
+function applyFiltersAndDisplay() {
+  const searchTerm = document.getElementById('taskSearch').value.toLowerCase();
+  const projectFilter = document.getElementById('projectFilter').value;
+  const labelFilter = document.getElementById('labelFilter').value;
+  
+  filteredTasks = allTasks.filter(task => {
+    // Text search (fuzzy search - not persistent)
+    const matchesSearch = !searchTerm || 
+      task.content.toLowerCase().includes(searchTerm) ||
+      (task.description && task.description.toLowerCase().includes(searchTerm));
+    
+    // Project filter (persistent)
+    const matchesProject = !projectFilter || task.project_id === projectFilter;
+    
+    // Label filter (persistent)
+    const matchesLabel = !labelFilter || 
+      (task.labels && task.labels.some(label => label === labelFilter));
+    
+    return matchesSearch && matchesProject && matchesLabel;
+  });
+  
+  displayTasks(filteredTasks);
+  clearTaskSelection();
+}
+
+function formatEmailForTodoist(message) {
+  const lines = [];
+  
+  // Add bullet point as specified in requirements
+  lines.push('* **Email from Thunderbird**');
+  lines.push('');
+  
+  // Email metadata
+  lines.push(`**Subject:** ${message.subject || 'No Subject'}`);
+  lines.push(`**From:** ${message.author || 'Unknown'}`);
+  lines.push(`**Date:** ${message.date ? new Date(message.date).toLocaleString() : 'Unknown'}`);
+  
+  // Add Thunderbird link if possible (this might not work in all cases)
+  if (message.id) {
+    lines.push(`**Message ID:** ${message.id}`);
+  }
+  
+  lines.push('');
+  
+  // Add email preview (first 200 characters as per requirements)
+  if (message.snippet || message.preview) {
+    const preview = (message.snippet || message.preview).substring(0, 200);
+    lines.push(`**Preview:** ${preview}${preview.length === 200 ? '...' : ''}`);
+  }
+  
+  return lines.join('\n');
+}
+
+// Utility function for debouncing search input
+function debounce(func, wait) {
+  let timeout;
+  return function executedFunction(...args) {
+    const later = () => {
+      clearTimeout(timeout);
+      func(...args);
+    };
+    clearTimeout(timeout);
+    timeout = setTimeout(later, wait);
+  };
 }
 
 // Error handler

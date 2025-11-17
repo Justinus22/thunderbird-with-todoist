@@ -47,23 +47,34 @@ async function testTodoistConnection(token) {
     });
     
     if (response.ok) {
-      const projects = await response.json();
-      console.log('Todoist connection successful, projects:', projects);
+      const data = await response.json();
+      console.log('Todoist connection successful, response:', data);
       
-      // Handle v1 API response format: {results: [...], next_cursor: null}
-      if (projects.results && Array.isArray(projects.results)) {
-        console.log('Projects count:', projects.results.length);
-        return { 
-          success: true, 
-          data: {
-            projectCount: projects.results.length,
-            message: `Connected successfully! Found ${projects.results.length} projects.`
-          }
-        };
+      // Handle both direct array (documented format) and paginated format (actual format)
+      let projects;
+      let projectCount;
+      
+      if (Array.isArray(data)) {
+        // Direct array format (as per documentation)
+        projects = data;
+        projectCount = data.length;
+      } else if (data && data.results && Array.isArray(data.results)) {
+        // Paginated format (actual API response)
+        projects = data.results;
+        projectCount = data.results.length;
       } else {
-        console.log('Unexpected response format:', projects);
+        console.log('Unexpected response format:', data);
         return { success: false, error: 'Unexpected response format from Todoist API' };
       }
+      
+      console.log('Projects count:', projectCount);
+      return { 
+        success: true, 
+        data: {
+          projectCount: projectCount,
+          message: `Connected successfully! Found ${projectCount} projects.`
+        }
+      };
     } else {
       const errorText = await response.text();
       console.error('Todoist API error:', response.status, response.statusText, errorText);
@@ -182,12 +193,306 @@ async function getCurrentMessage() {
   }
 }
 
+// Additional Todoist API functions
+
+async function getAllTasks(filter = {}) {
+  const token = await getTodoistToken();
+  
+  if (!token) {
+    return { success: false, error: 'No API token found' };
+  }
+
+  try {
+    let allTasks = [];
+    let cursor = null;
+    
+    do {
+      // Build query parameters for filtering and pagination
+      const params = new URLSearchParams();
+      if (filter.project_id) params.append('project_id', filter.project_id);
+      if (filter.section_id) params.append('section_id', filter.section_id);
+      if (filter.label) params.append('label', filter.label);
+      if (filter.filter) params.append('filter', filter.filter); // Todoist natural language filter
+      if (cursor) params.append('cursor', cursor);
+      
+      const url = `${TODOIST_API_BASE}/tasks${params.toString() ? '?' + params.toString() : ''}`;
+      console.log('Fetching tasks from:', url);
+      
+      const response = await fetch(url, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        console.log('Tasks API response:', data);
+        
+        // API v1 uses paginated format: {results: [...], next_cursor: null}
+        if (data && data.results && Array.isArray(data.results)) {
+          allTasks = allTasks.concat(data.results);
+          cursor = data.next_cursor;
+          console.log(`Fetched ${data.results.length} tasks, total so far: ${allTasks.length}`);
+          
+          if (cursor) {
+            console.log('More tasks available, fetching next page...');
+          }
+        } else {
+          console.log('Unexpected tasks response format:', data);
+          return { success: false, error: 'Unexpected response format from Todoist API' };
+        }
+      } else {
+        const errorText = await response.text();
+        console.error('Tasks API error:', response.status, response.statusText, errorText);
+        return { success: false, error: `API Error: ${response.status} - ${errorText}` };
+      }
+    } while (cursor); // Continue while there are more pages
+    
+    console.log(`All tasks fetched successfully: ${allTasks.length} total tasks`);
+    return { 
+      success: true, 
+      data: allTasks 
+    };
+  } catch (error) {
+    console.error('Network error fetching tasks:', error);
+    return { success: false, error: error.message };
+  }
+}
+
+async function getSections(projectId = null) {
+  const token = await getTodoistToken();
+  
+  if (!token) {
+    return { success: false, error: 'No API token found' };
+  }
+  
+  try {
+    let allSections = [];
+    let cursor = null;
+    
+    do {
+      const params = new URLSearchParams();
+      if (projectId) params.append('project_id', projectId);
+      if (cursor) params.append('cursor', cursor);
+      
+      const url = `${TODOIST_API_BASE}/sections${params.toString() ? '?' + params.toString() : ''}`;
+      console.log('Fetching sections from:', url);
+      
+      const response = await fetch(url, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        console.log('Sections API response:', data);
+        
+        // API v1 uses paginated format: {results: [...], next_cursor: null}
+        if (data && data.results && Array.isArray(data.results)) {
+          allSections = allSections.concat(data.results);
+          cursor = data.next_cursor;
+          console.log(`Fetched ${data.results.length} sections, total so far: ${allSections.length}`);
+          
+          if (cursor) {
+            console.log('More sections available, fetching next page...');
+          }
+        } else {
+          console.log('Unexpected sections response format:', data);
+          return { success: false, error: 'Unexpected response format from Todoist API' };
+        }
+      } else {
+        const errorText = await response.text();
+        console.error('Sections API error:', response.status, response.statusText, errorText);
+        return { success: false, error: `API Error: ${response.status} - ${errorText}` };
+      }
+    } while (cursor); // Continue while there are more pages
+    
+    console.log(`All sections fetched successfully: ${allSections.length} total sections`);
+    return { 
+      success: true, 
+      data: allSections 
+    };
+  } catch (error) {
+    console.error('Network error fetching sections:', error);
+    return { success: false, error: error.message };
+  }
+}
+
+async function getLabels() {
+  const token = await getTodoistToken();
+  
+  if (!token) {
+    return { success: false, error: 'No API token found' };
+  }
+  
+  try {
+    let allLabels = [];
+    let cursor = null;
+    
+    do {
+      const params = new URLSearchParams();
+      if (cursor) params.append('cursor', cursor);
+      
+      const url = `${TODOIST_API_BASE}/labels${params.toString() ? '?' + params.toString() : ''}`;
+      console.log('Fetching labels from:', url);
+      
+      const response = await fetch(url, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        console.log('Labels API response:', data);
+        
+        // API v1 uses paginated format: {results: [...], next_cursor: null}
+        if (data && data.results && Array.isArray(data.results)) {
+          allLabels = allLabels.concat(data.results);
+          cursor = data.next_cursor;
+          console.log(`Fetched ${data.results.length} labels, total so far: ${allLabels.length}`);
+          
+          if (cursor) {
+            console.log('More labels available, fetching next page...');
+          }
+        } else {
+          console.log('Unexpected labels response format:', data);
+          return { success: false, error: 'Unexpected response format from Todoist API' };
+        }
+      } else {
+        const errorText = await response.text();
+        console.error('Labels API error:', response.status, response.statusText, errorText);
+        return { success: false, error: `API Error: ${response.status} - ${errorText}` };
+      }
+    } while (cursor); // Continue while there are more pages
+    
+    console.log(`All labels fetched successfully: ${allLabels.length} total labels`);
+    return { 
+      success: true, 
+      data: allLabels 
+    };
+  } catch (error) {
+    console.error('Network error fetching labels:', error);
+    return { success: false, error: error.message };
+  }
+}
+
+async function addEmailComment(taskId, content) {
+  const token = await getTodoistToken();
+  
+  if (!token) {
+    return { success: false, error: 'No API token found' };
+  }
+  
+  if (!taskId || !content) {
+    return { success: false, error: 'Task ID and content are required' };
+  }
+  
+  try {
+    const response = await fetch(`${TODOIST_API_BASE}/comments`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        task_id: taskId,
+        content: content
+      })
+    });
+    
+    if (response.ok) {
+      const comment = await response.json();
+      console.log('Comment added successfully:', comment.id);
+      
+      return { 
+        success: true, 
+        data: comment 
+      };
+    } else {
+      const errorText = await response.text();
+      console.error('Comments API error:', response.status, response.statusText, errorText);
+      return { success: false, error: `API Error: ${response.status} - ${errorText}` };
+    }
+  } catch (error) {
+    console.error('Network error adding comment:', error);
+    return { success: false, error: error.message };
+  }
+}
+
+async function getProjects() {
+  const token = await getTodoistToken();
+  
+  if (!token) {
+    return { success: false, error: 'No API token found' };
+  }
+  
+  try {
+    let allProjects = [];
+    let cursor = null;
+    
+    do {
+      const params = new URLSearchParams();
+      if (cursor) params.append('cursor', cursor);
+      
+      const url = `${TODOIST_API_BASE}/projects${params.toString() ? '?' + params.toString() : ''}`;
+      console.log('Fetching projects from:', url);
+      
+      const response = await fetch(url, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        console.log('Projects API response:', data);
+        
+        // API v1 uses paginated format: {results: [...], next_cursor: null}
+        if (data && data.results && Array.isArray(data.results)) {
+          allProjects = allProjects.concat(data.results);
+          cursor = data.next_cursor;
+          console.log(`Fetched ${data.results.length} projects, total so far: ${allProjects.length}`);
+          
+          if (cursor) {
+            console.log('More projects available, fetching next page...');
+          }
+        } else {
+          console.log('Unexpected projects response format:', data);
+          return { success: false, error: 'Unexpected response format from Todoist API' };
+        }
+      } else {
+        const errorText = await response.text();
+        console.error('Projects API error:', response.status, response.statusText, errorText);
+        return { success: false, error: `API Error: ${response.status} - ${errorText}` };
+      }
+    } while (cursor); // Continue while there are more pages
+    
+    console.log(`All projects fetched successfully: ${allProjects.length} total projects`);
+    return { 
+      success: true, 
+      projects: allProjects
+    };
+  } catch (error) {
+    console.error('Network error fetching projects:', error);
+    return { success: false, error: error.message };
+  }
+}
+
 // Message passing handler
 browser.runtime.onMessage.addListener(async (message, sender, sendResponse) => {
   console.log('Background received message:', message);
   
   try {
-    switch (message.type) {
+    switch (message.action || message.type) {
       case 'TEST_TODOIST_CONNECTION':
         console.log('Testing Todoist connection...');
         const token = await getTodoistToken();
@@ -219,6 +524,39 @@ browser.runtime.onMessage.addListener(async (message, sender, sendResponse) => {
         const currentMessage = await getCurrentMessage();
         console.log('Current message result:', currentMessage ? 'found' : 'not found');
         return { success: true, message: currentMessage };
+
+      case 'GET_ALL_TASKS':
+        console.log('Getting all tasks with filter:', message.filter || {});
+        const tasksResult = await getAllTasks(message.filter || {});
+        console.log('Tasks result:', tasksResult.success ? `${tasksResult.data.length} tasks` : tasksResult.error);
+        return tasksResult;
+
+      case 'GET_PROJECTS':
+        console.log('Getting projects...');
+        const projectsResult = await getProjects();
+        console.log('Projects result:', projectsResult.success ? `${projectsResult.projects.length} projects` : projectsResult.error);
+        return projectsResult;
+
+      case 'GET_SECTIONS':
+        console.log('Getting sections for project:', message.projectId || 'all');
+        const sectionsResult = await getSections(message.projectId);
+        console.log('Sections result:', sectionsResult.success ? `${sectionsResult.data.length} sections` : sectionsResult.error);
+        return sectionsResult;
+
+      case 'GET_LABELS':
+        console.log('Getting labels...');
+        const labelsResult = await getLabels();
+        console.log('Labels result:', labelsResult.success ? `${labelsResult.data.length} labels` : labelsResult.error);
+        return labelsResult;
+
+      case 'ADD_EMAIL_COMMENT':
+        console.log('Adding email comment to task:', message.taskId);
+        if (!message.taskId || !message.content) {
+          return { success: false, error: 'Task ID and content are required' };
+        }
+        const commentResult = await addEmailComment(message.taskId, message.content);
+        console.log('Comment result:', commentResult.success ? 'added successfully' : commentResult.error);
+        return commentResult;
         
       default:
         console.warn('Unknown message type:', message.type);

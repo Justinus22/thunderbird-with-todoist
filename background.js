@@ -98,7 +98,7 @@ async function getCurrentMessage() {
       if (displayedMessages && displayedMessages.messages && displayedMessages.messages.length > 0) {
         const message = displayedMessages.messages[0];
         console.log('Found displayed message:', message.subject);
-        return message;
+        return await enrichMessageData(message);
       }
     } catch (error) {
       console.log('Method 1 failed:', error.message);
@@ -112,7 +112,7 @@ async function getCurrentMessage() {
       if (selectedMessages && selectedMessages.messages && selectedMessages.messages.length > 0) {
         const message = selectedMessages.messages[0];
         console.log('Found selected message:', message.subject);
-        return message;
+        return await enrichMessageData(message);
       }
     } catch (error) {
       console.log('Method 2 failed:', error.message);
@@ -134,7 +134,7 @@ async function getCurrentMessage() {
         if (displayedMessages && displayedMessages.messages && displayedMessages.messages.length > 0) {
           const message = displayedMessages.messages[0];
           console.log('Found displayed message in active tab:', message.subject);
-          return message;
+          return await enrichMessageData(message);
         }
         
         // Try to get selected messages for this specific tab
@@ -144,7 +144,7 @@ async function getCurrentMessage() {
         if (selectedMessages && selectedMessages.messages && selectedMessages.messages.length > 0) {
           const message = selectedMessages.messages[0];
           console.log('Found selected message in active tab:', message.subject);
-          return message;
+          return await enrichMessageData(message);
         }
       }
     } catch (error) {
@@ -164,7 +164,7 @@ async function getCurrentMessage() {
           if (displayedMessages && displayedMessages.messages && displayedMessages.messages.length > 0) {
             const message = displayedMessages.messages[0];
             console.log('Found displayed message in tab', mailTab.tabId, ':', message.subject);
-            return message;
+            return await enrichMessageData(message);
           }
         } catch (e) {
           console.log(`Failed to get displayed messages for tab ${mailTab.tabId}:`, e.message);
@@ -175,7 +175,7 @@ async function getCurrentMessage() {
           if (selectedMessages && selectedMessages.messages && selectedMessages.messages.length > 0) {
             const message = selectedMessages.messages[0];
             console.log('Found selected message in tab', mailTab.tabId, ':', message.subject);
-            return message;
+            return await enrichMessageData(message);
           }
         } catch (e) {
           console.log(`Failed to get selected messages for tab ${mailTab.tabId}:`, e.message);
@@ -191,6 +191,90 @@ async function getCurrentMessage() {
     console.error('Error getting current message:', error);
     return null;
   }
+}
+
+// Function to enrich message data with body
+async function enrichMessageData(message) {
+  try {
+    console.log('Enriching message data for:', message.subject);
+    
+    // Get message full content including body
+    const fullMessage = await browser.messages.getFull(message.id);
+    console.log('Full message retrieved, parts:', fullMessage.parts?.length || 0);
+    
+    // Extract plain text body from message parts
+    const body = extractTextBody(fullMessage);
+    console.log('Body extracted, length:', body?.length || 0);
+    
+    return {
+      ...message,
+      body: body
+    };
+  } catch (error) {
+    console.error('Error enriching message data:', error);
+    // Return basic message if enrichment fails
+    return {
+      ...message,
+      body: ''
+    };
+  }
+}
+
+// Function to extract text body from message parts
+function extractTextBody(fullMessage) {
+  try {
+    if (!fullMessage || !fullMessage.parts) {
+      return '';
+    }
+    
+    // Look for text/plain part
+    const textPart = findMessagePart(fullMessage.parts, 'text/plain');
+    if (textPart && textPart.body) {
+      return textPart.body;
+    }
+    
+    // If no plain text, look for text/html and strip tags
+    const htmlPart = findMessagePart(fullMessage.parts, 'text/html');
+    if (htmlPart && htmlPart.body) {
+      // Basic HTML tag removal (for security, we keep it simple)
+      return htmlPart.body
+        .replace(/<[^>]*>/g, '') // Remove HTML tags
+        .replace(/&nbsp;/g, ' ') // Replace &nbsp; with space
+        .replace(/&lt;/g, '<') // Basic HTML entity decode
+        .replace(/&gt;/g, '>')
+        .replace(/&amp;/g, '&')
+        .trim();
+    }
+    
+    return '';
+  } catch (error) {
+    console.error('Error extracting text body:', error);
+    return '';
+  }
+}
+
+// Recursive function to find message part by content type
+function findMessagePart(parts, contentType) {
+  if (!parts || !Array.isArray(parts)) {
+    return null;
+  }
+  
+  for (const part of parts) {
+    // Check if this part matches
+    if (part.contentType && part.contentType.includes(contentType)) {
+      return part;
+    }
+    
+    // Check nested parts
+    if (part.parts) {
+      const nested = findMessagePart(part.parts, contentType);
+      if (nested) {
+        return nested;
+      }
+    }
+  }
+  
+  return null;
 }
 
 // Additional Todoist API functions
@@ -384,8 +468,8 @@ async function getLabels() {
   }
 }
 
-// Create email as subtask with attachments
-async function createEmailSubtask(parentTaskId, emailSubject, emailBody, attachments = []) {
+// Create email as subtask
+async function createEmailSubtask(parentTaskId, emailSubject, emailBody) {
   const token = await getTodoistToken();
   
   if (!token) {
@@ -399,6 +483,10 @@ async function createEmailSubtask(parentTaskId, emailSubject, emailBody, attachm
   try {
     // Create subtask with "*" prefix for Todoist task recognition
     const taskContent = `* ${emailSubject}`;
+    const taskDescription = emailBody || 'No email content available';
+    
+    console.log('Creating subtask with content:', taskContent);
+    console.log('Task description length:', taskDescription.length);
     
     const taskResponse = await fetch(`${TODOIST_API_BASE}/tasks`, {
       method: 'POST',
@@ -408,7 +496,7 @@ async function createEmailSubtask(parentTaskId, emailSubject, emailBody, attachm
       },
       body: JSON.stringify({
         content: taskContent,
-        description: emailBody || '',
+        description: taskDescription,
         parent_id: parentTaskId,
         priority: 1
       })
@@ -422,66 +510,17 @@ async function createEmailSubtask(parentTaskId, emailSubject, emailBody, attachm
     
     const subtask = await taskResponse.json();
     console.log('Subtask created successfully:', subtask.id);
-    
-    // Add attachments as comments to the subtask
-    const attachmentResults = [];
-    for (const attachment of attachments) {
-      const commentResult = await addAttachmentComment(subtask.id, attachment);
-      attachmentResults.push(commentResult);
-    }
+    console.log('Subtask content:', subtask.content);
+    console.log('Subtask description:', subtask.description);
     
     return { 
       success: true, 
       data: {
-        subtask: subtask,
-        attachments: attachmentResults
+        subtask: subtask
       }
     };
   } catch (error) {
     console.error('Error creating email subtask:', error);
-    return { success: false, error: error.message };
-  }
-}
-
-// Add attachment as comment to a task
-async function addAttachmentComment(taskId, attachment) {
-  const token = await getTodoistToken();
-  
-  if (!token) {
-    return { success: false, error: 'No API token found' };
-  }
-  
-  try {
-    const response = await fetch(`${TODOIST_API_BASE}/comments`, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${token}`,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        task_id: taskId,
-        content: `Attachment: ${attachment.name}`,
-        attachment: {
-          file_name: attachment.name,
-          file_url: attachment.url || '',
-          file_type: attachment.type || 'application/octet-stream',
-          file_size: attachment.size || 0,
-          resource_type: 'file'
-        }
-      })
-    });
-    
-    if (response.ok) {
-      const comment = await response.json();
-      console.log('Attachment comment added successfully:', comment.id);
-      return { success: true, data: comment };
-    } else {
-      const errorText = await response.text();
-      console.error('Failed to add attachment comment:', errorText);
-      return { success: false, error: `Failed to add attachment comment: ${errorText}` };
-    }
-  } catch (error) {
-    console.error('Error adding attachment comment:', error);
     return { success: false, error: error.message };
   }
 }
@@ -674,8 +713,7 @@ browser.runtime.onMessage.addListener(async (message, sender, sendResponse) => {
         const subtaskResult = await createEmailSubtask(
           message.parentTaskId, 
           message.emailSubject, 
-          message.emailBody, 
-          message.attachments || []
+          message.emailBody
         );
         console.log('Subtask result:', subtaskResult.success ? 'created successfully' : subtaskResult.error);
         return subtaskResult;

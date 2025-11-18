@@ -3,19 +3,19 @@
   "name": "Thunderbird-Todoist Integration",
   "version": "0.1.0",
   "description": "Attach emails as subtask notes to Todoist tasks",
-  
+
   "permissions": [
     "messagesRead",
     "storage",
     "tabs"
   ],
-  
+
   "background": {
     "scripts": ["background.js"]
   },
-  
+
   "message_display_action": {
-    "default_title": "Add to Todoist",
+    "default_title": "Todoist",
     "default_popup": "popup.html",
     "default_icon": {
       "16": "icons/icon-16.svg",

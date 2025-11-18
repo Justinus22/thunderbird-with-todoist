@@ -154,9 +154,14 @@ async function savePreferencesHandler() {
     autoAddTodoist: document.getElementById('autoAddTodoist').checked,
     markAsProcessed: document.getElementById('markAsProcessed').checked
   };
-  
+
+  const iconOnlyMode = document.getElementById('iconOnlyMode').checked;
+
   try {
-    await browser.storage.local.set({ todoistPreferences: preferences });
+    await browser.storage.local.set({
+      todoistPreferences: preferences,
+      iconOnlyMode: iconOnlyMode
+    });
     updateStatus('Preferences saved successfully!', 'success');
   } catch (error) {
     console.error('Error saving preferences:', error);
@@ -174,9 +179,12 @@ async function resetPreferencesHandler() {
       autoAddTodoist: false,
       markAsProcessed: false
     };
-    
+
     try {
-      await browser.storage.local.set({ todoistPreferences: defaultPreferences });
+      await browser.storage.local.set({
+        todoistPreferences: defaultPreferences,
+        iconOnlyMode: false
+      });
       await loadCurrentSettings();
       updateStatus('Preferences reset to defaults', 'success');
     } catch (error) {
@@ -289,7 +297,7 @@ async function loadCurrentSettings() {
     }
     
     // Load preferences
-    const result = await browser.storage.local.get('todoistPreferences');
+    const result = await browser.storage.local.get(['todoistPreferences', 'iconOnlyMode']);
     const preferences = result.todoistPreferences || {
       defaultProject: '',
       includeBody: true,
@@ -298,7 +306,8 @@ async function loadCurrentSettings() {
       autoAddTodoist: false,
       markAsProcessed: false
     };
-    
+    const iconOnlyMode = result.iconOnlyMode || false;
+
     // Apply preferences to form
     document.getElementById('defaultProject').value = preferences.defaultProject;
     document.getElementById('includeBody').checked = preferences.includeBody;
@@ -306,8 +315,9 @@ async function loadCurrentSettings() {
     document.getElementById('includeHeaders').checked = preferences.includeHeaders;
     document.getElementById('autoAddTodoist').checked = preferences.autoAddTodoist;
     document.getElementById('markAsProcessed').checked = preferences.markAsProcessed;
-    
-    console.log('Settings loaded:', preferences);
+    document.getElementById('iconOnlyMode').checked = iconOnlyMode;
+
+    console.log('Settings loaded:', preferences, 'Icon-only mode:', iconOnlyMode);
   } catch (error) {
     console.error('Error loading settings:', error);
   }

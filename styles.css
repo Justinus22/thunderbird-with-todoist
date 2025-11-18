@@ -411,3 +411,106 @@ body {
 .btn-secondary:hover {
   background: #5a5a5a;
 }
+
+/* Add Task Form */
+.add-task-form {
+  width: 350px;
+  min-height: 400px;
+  display: flex;
+  flex-direction: column;
+}
+
+.form-container {
+  padding: 16px;
+}
+
+.form-label {
+  display: block;
+  margin-bottom: 16px;
+  font-size: 13px;
+  font-weight: 500;
+  color: #cccccc;
+}
+
+.required {
+  color: #db4c3f;
+}
+
+.form-input,
+.form-select {
+  width: 100%;
+  padding: 8px;
+  margin-top: 6px;
+  border: 1px solid #404040;
+  border-radius: 4px;
+  background: #1e1e1e;
+  color: #ffffff;
+  font-size: 14px;
+}
+
+.form-input:focus,
+.form-select:focus {
+  outline: none;
+  border-color: #db4c3f;
+}
+
+.create-task-btn {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+/* Action Menu */
+.action-menu {
+  width: 350px;
+  min-height: 300px;
+}
+
+.action-buttons-large {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 20px;
+}
+
+.action-btn-large {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 24px;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 16px;
+  font-weight: 600;
+  transition: all 0.2s;
+  color: white;
+  min-height: 100px;
+}
+
+.action-btn-large:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+
+.action-btn-large svg {
+  flex-shrink: 0;
+}
+
+.action-btn-large.subnote-btn {
+  background: linear-gradient(135deg, #db4c3f 0%, #c23e31 100%);
+}
+
+.action-btn-large.add-task-btn {
+  background: linear-gradient(135deg, #058527 0%, #047120 100%);
+}
+
+.action-text {
+  font-size: 15px;
+  font-weight: 500;
+}

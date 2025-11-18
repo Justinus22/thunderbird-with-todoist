@@ -1,11 +1,13 @@
-// Popup script for Thunderbird-Todoist Integration
+// Main Popup - Choose action or browse tasks
 
 // State
+let currentView = 'menu'; // 'menu', 'subnote', 'addtask'
 let allTasks = [];
 let allProjects = [];
 let allLabels = [];
 let allSections = [];
 let selectedTask = null;
+let iconOnlyMode = false;
 
 // Utility functions
 function escapeHtml(text) {
@@ -41,11 +43,14 @@ async function getTodoistToken() {
   return todoistToken;
 }
 
+async function getIconOnlyMode() {
+  const { iconOnlyMode } = await browser.storage.local.get('iconOnlyMode');
+  return iconOnlyMode || false;
+}
+
 async function testConnection() {
   const token = await getTodoistToken();
   if (!token) return false;
-
-  updateStatus('Testing connection...', 'info');
 
   try {
     const response = await fetch('https://api.todoist.com/api/v1/projects', {
@@ -54,15 +59,7 @@ async function testConnection() {
         'Content-Type': 'application/json'
       }
     });
-
-    if (response.ok) {
-      const data = await response.json();
-      const projectCount = data.results?.length || 0;
-      updateStatus(`Connected! Found ${projectCount} projects.`, 'success');
-      return true;
-    }
-    updateStatus('Connection failed', 'error');
-    return false;
+    return response.ok;
   } catch (error) {
     return false;
   }
@@ -71,11 +68,12 @@ async function testConnection() {
 // Initialization
 async function init() {
   const token = await getTodoistToken();
+  iconOnlyMode = await getIconOnlyMode();
 
   if (token) {
     const isConnected = await testConnection();
     if (isConnected) {
-      await loadTaskInterface();
+      showMenu();
     } else {
       showSetup();
     }
@@ -107,9 +105,72 @@ function setupEventListeners() {
   }
 }
 
-// Task Interface
-async function loadTaskInterface() {
+// Main Menu
+function showMenu() {
   document.getElementById('setupSection').classList.add('hidden');
+  currentView = 'menu';
+
+  const buttonContent = iconOnlyMode ? '' : `
+    <span class="action-text">Add as Subnote</span>
+  `;
+
+  const buttonContent2 = iconOnlyMode ? '' : `
+    <span class="action-text">Add Task</span>
+  `;
+
+  document.getElementById('main-content').innerHTML = `
+    <div class="action-menu">
+      <div class="header">
+        <h3>Todoist Actions</h3>
+        <button id="settingsBtn" class="icon-btn" title="Settings">
+          <svg width="20" height="20" viewBox="0 0 20 20" fill="currentColor">
+            <path d="M10 6a4 4 0 100 8 4 4 0 000-8zm-2 4a2 2 0 114 0 2 2 0 01-4 0z"/>
+            <path d="M10 0C9.651 0 9.303.025 8.959.075l-.866 2.033A8.07 8.07 0 006.5 3.232L4.232 2.366l-.866.5a10 10 0 00-1.5 2.598l.866.5 1.768 1.036v2l-1.768 1.036-.866.5a10 10 0 001.5 2.598l.866.5 2.268-.866a8.07 8.07 0 001.593 1.124l.866 2.033c.344.05.692.075 1.041.075s.697-.025 1.041-.075l.866-2.033a8.07 8.07 0 001.593-1.124l2.268.866.866-.5a10 10 0 001.5-2.598l-.866-.5-1.768-1.036v-2l1.768-1.036.866-.5a10 10 0 00-1.5-2.598l-.866-.5-2.268.866a8.07 8.07 0 00-1.593-1.124L11.041.075A10.07 10.07 0 0010 0z"/>
+          </svg>
+        </button>
+      </div>
+
+      <div class="action-buttons-large">
+        <button id="subnoteBtn" class="action-btn-large subnote-btn" title="Attach email to existing task as subnote">
+          <svg width="32" height="32" viewBox="0 0 32 32" fill="currentColor">
+            <path d="M16 4v24M4 16h24" stroke="currentColor" stroke-width="3" stroke-linecap="round"/>
+            <circle cx="16" cy="16" r="14" stroke="currentColor" stroke-width="2" fill="none"/>
+          </svg>
+          ${buttonContent}
+        </button>
+
+        <button id="addTaskBtn" class="action-btn-large add-task-btn" title="Create new task from email">
+          <svg width="32" height="32" viewBox="0 0 32 32" fill="currentColor">
+            <rect x="6" y="6" width="20" height="20" rx="2" stroke="currentColor" stroke-width="2" fill="none"/>
+            <line x1="10" y1="12" x2="22" y2="12" stroke="currentColor" stroke-width="2"/>
+            <line x1="10" y1="16" x2="18" y2="16" stroke="currentColor" stroke-width="2"/>
+            <line x1="10" y1="20" x2="20" y2="20" stroke="currentColor" stroke-width="2"/>
+          </svg>
+          ${buttonContent2}
+        </button>
+      </div>
+    </div>
+  `;
+
+  document.getElementById('settingsBtn').addEventListener('click', openSettings);
+  document.getElementById('subnoteBtn').addEventListener('click', () => loadSubnoteView());
+  document.getElementById('addTaskBtn').addEventListener('click', () => loadAddTaskView());
+}
+
+async function openSettings() {
+  try {
+    await browser.tabs.create({
+      url: browser.runtime.getURL('config.html'),
+      active: true
+    });
+  } catch (error) {
+    updateStatus('Failed to open settings', 'error');
+  }
+}
+
+// Subnote View
+async function loadSubnoteView() {
+  currentView = 'subnote';
   document.getElementById('main-content').innerHTML = `
     <div class="loading">
       <div class="spinner"></div>
@@ -118,19 +179,17 @@ async function loadTaskInterface() {
   `;
 
   try {
-    const [tasksResponse, projectsResponse, labelsResponse, sectionsResponse] = await Promise.all([
+    const [tasksResponse, projectsResponse, labelsResponse] = await Promise.all([
       browser.runtime.sendMessage({ action: 'GET_ALL_TASKS' }),
       browser.runtime.sendMessage({ action: 'GET_PROJECTS' }),
-      browser.runtime.sendMessage({ action: 'GET_LABELS' }),
-      browser.runtime.sendMessage({ action: 'GET_SECTIONS' })
+      browser.runtime.sendMessage({ action: 'GET_LABELS' })
     ]);
 
     allTasks = tasksResponse.success ? tasksResponse.data : [];
     allProjects = projectsResponse.success ? projectsResponse.projects : [];
     allLabels = labelsResponse.success ? labelsResponse.data : [];
-    allSections = sectionsResponse.success ? sectionsResponse.data : [];
 
-    renderInterface();
+    renderSubnoteInterface();
     await loadSavedFilters();
     applyFilters();
   } catch (error) {
@@ -138,11 +197,16 @@ async function loadTaskInterface() {
   }
 }
 
-function renderInterface() {
+function renderSubnoteInterface() {
   document.getElementById('main-content').innerHTML = `
     <div class="task-interface">
       <div class="header">
-        <h3>Tasks</h3>
+        <button id="backBtn" class="icon-btn" title="Back">
+          <svg width="20" height="20" viewBox="0 0 20 20" fill="currentColor">
+            <path d="M10 4l-6 6 6 6V4z"/>
+          </svg>
+        </button>
+        <h3>Select Task</h3>
         <button id="settingsBtn" class="icon-btn" title="Settings">
           <svg width="20" height="20" viewBox="0 0 20 20" fill="currentColor">
             <path d="M10 6a4 4 0 100 8 4 4 0 000-8zm-2 4a2 2 0 114 0 2 2 0 01-4 0z"/>
@@ -178,58 +242,17 @@ function renderInterface() {
         <div id="selectedTaskDisplay" class="selected-task">
           <p>No task selected</p>
         </div>
-        <div class="action-buttons">
-          <button id="attachEmailBtn" class="action-btn subnote-btn" disabled>
-            <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
-              <path d="M8 2v12M2 8h12" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
-            </svg>
-            Subnote
-          </button>
-          <button id="addTaskBtn" class="action-btn add-task-btn">
-            <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
-              <path d="M14 3H2a1 1 0 00-1 1v8a1 1 0 001 1h12a1 1 0 001-1V4a1 1 0 00-1-1zM4 6h8v1H4V6zm0 2h6v1H4V8z"/>
-            </svg>
-            Add Task
-          </button>
-        </div>
-      </div>
-
-      <!-- Add Task Modal -->
-      <div id="addTaskModal" class="modal hidden">
-        <div class="modal-content">
-          <div class="modal-header">
-            <h3>Create New Task from Email</h3>
-            <button id="closeModal" class="close-btn">&times;</button>
-          </div>
-          <div class="modal-body">
-            <label>
-              Task Title
-              <input type="text" id="taskTitle" class="modal-input" placeholder="Email subject will be used">
-            </label>
-            <label>
-              Project *
-              <select id="modalProjectSelect" class="modal-select">
-                <option value="">Select a project</option>
-                ${allProjects.map(p => `<option value="${p.id}">${escapeHtml(p.name)}</option>`).join('')}
-              </select>
-            </label>
-            <label>
-              Section (optional)
-              <select id="modalSectionSelect" class="modal-select">
-                <option value="">No section</option>
-              </select>
-            </label>
-          </div>
-          <div class="modal-footer">
-            <button id="cancelTaskBtn" class="btn-secondary">Cancel</button>
-            <button id="createTaskBtn" class="btn">Create Task</button>
-          </div>
-        </div>
+        <button id="attachEmailBtn" class="action-btn subnote-btn" disabled style="width: 100%;">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+            <path d="M8 2v12M2 8h12" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+          </svg>
+          Add as Subnote
+        </button>
       </div>
     </div>
   `;
 
-  // Attach event listeners
+  document.getElementById('backBtn').addEventListener('click', showMenu);
   document.getElementById('settingsBtn').addEventListener('click', openSettings);
   document.getElementById('taskSearch').addEventListener('input', debounce(applyFilters, 300));
   document.getElementById('projectFilter').addEventListener('change', () => {
@@ -242,13 +265,6 @@ function renderInterface() {
   });
   document.getElementById('clearFilters').addEventListener('click', clearFilters);
   document.getElementById('attachEmailBtn').addEventListener('click', attachEmail);
-  document.getElementById('addTaskBtn').addEventListener('click', openAddTaskModal);
-
-  // Modal event listeners
-  document.getElementById('closeModal').addEventListener('click', closeAddTaskModal);
-  document.getElementById('cancelTaskBtn').addEventListener('click', closeAddTaskModal);
-  document.getElementById('createTaskBtn').addEventListener('click', createNewTask);
-  document.getElementById('modalProjectSelect').addEventListener('change', updateSectionOptions);
 }
 
 function applyFilters() {
@@ -290,7 +306,6 @@ function displayTasks(tasks) {
     </div>
   `).join('');
 
-  // Add click listeners
   taskList.querySelectorAll('.task-item').forEach(el => {
     el.addEventListener('click', () => {
       const taskId = el.dataset.taskId;
@@ -345,7 +360,7 @@ async function attachEmail() {
   }
 
   try {
-    updateStatus('Creating subtask from email...', 'info');
+    updateStatus('Creating subnote...', 'info');
 
     const response = await browser.runtime.sendMessage({ type: 'GET_CURRENT_MESSAGE' });
     if (!response.success || !response.message) {
@@ -361,12 +376,12 @@ async function attachEmail() {
     });
 
     if (subtaskResponse.success) {
-      updateStatus('Email added as subtask successfully!', 'success');
+      updateStatus('Email added as subnote!', 'success');
     } else {
       updateStatus(`Failed: ${subtaskResponse.error}`, 'error');
     }
   } catch (error) {
-    updateStatus('Error creating subtask', 'error');
+    updateStatus('Error creating subnote', 'error');
   }
 }
 
@@ -415,42 +430,94 @@ function clearFilters() {
   applyFilters();
 }
 
-// Settings
-async function openSettings() {
+// Add Task View
+async function loadAddTaskView() {
+  currentView = 'addtask';
+  document.getElementById('main-content').innerHTML = `
+    <div class="loading">
+      <div class="spinner"></div>
+      Loading...
+    </div>
+  `;
+
   try {
-    await browser.tabs.create({
-      url: browser.runtime.getURL('config.html'),
-      active: true
-    });
+    const [projectsResponse, sectionsResponse] = await Promise.all([
+      browser.runtime.sendMessage({ action: 'GET_PROJECTS' }),
+      browser.runtime.sendMessage({ action: 'GET_SECTIONS' })
+    ]);
+
+    allProjects = projectsResponse.success ? projectsResponse.projects : [];
+    allSections = sectionsResponse.success ? sectionsResponse.data : [];
+
+    renderAddTaskForm();
   } catch (error) {
-    updateStatus('Failed to open settings', 'error');
+    document.getElementById('main-content').innerHTML = '<div class="status error">Error loading data</div>';
   }
 }
 
-// Add Task Modal
-function openAddTaskModal() {
-  const modal = document.getElementById('addTaskModal');
-  if (modal) {
-    modal.classList.remove('hidden');
+function renderAddTaskForm() {
+  document.getElementById('main-content').innerHTML = `
+    <div class="add-task-form">
+      <div class="header">
+        <button id="backBtn" class="icon-btn" title="Back">
+          <svg width="20" height="20" viewBox="0 0 20 20" fill="currentColor">
+            <path d="M10 4l-6 6 6 6V4z"/>
+          </svg>
+        </button>
+        <h3>Create Task</h3>
+        <button id="settingsBtn" class="icon-btn" title="Settings">
+          <svg width="20" height="20" viewBox="0 0 20 20" fill="currentColor">
+            <path d="M10 6a4 4 0 100 8 4 4 0 000-8zm-2 4a2 2 0 114 0 2 2 0 01-4 0z"/>
+            <path d="M10 0C9.651 0 9.303.025 8.959.075l-.866 2.033A8.07 8.07 0 006.5 3.232L4.232 2.366l-.866.5a10 10 0 00-1.5 2.598l.866.5 1.768 1.036v2l-1.768 1.036-.866.5a10 10 0 001.5 2.598l.866.5 2.268-.866a8.07 8.07 0 001.593 1.124l.866 2.033c.344.05.692.075 1.041.075s.697-.025 1.041-.075l.866-2.033a8.07 8.07 0 001.593-1.124l2.268.866.866-.5a10 10 0 001.5-2.598l-.866-.5-1.768-1.036v-2l1.768-1.036.866-.5a10 10 0 00-1.5-2.598l-.866-.5-2.268.866a8.07 8.07 0 00-1.593-1.124L11.041.075A10.07 10.07 0 0010 0z"/>
+          </svg>
+        </button>
+      </div>
 
-    // Reset form
-    document.getElementById('taskTitle').value = '';
-    document.getElementById('modalProjectSelect').value = '';
-    document.getElementById('modalSectionSelect').value = '';
-    document.getElementById('modalSectionSelect').innerHTML = '<option value="">No section</option>';
-  }
-}
+      <div id="status" class="status info hidden"></div>
 
-function closeAddTaskModal() {
-  const modal = document.getElementById('addTaskModal');
-  if (modal) {
-    modal.classList.add('hidden');
-  }
+      <div class="form-container">
+        <label class="form-label">
+          Task Title
+          <input type="text" id="taskTitle" class="form-input" placeholder="Email subject will be used if empty">
+        </label>
+
+        <label class="form-label">
+          Project <span class="required">*</span>
+          <select id="projectSelect" class="form-select">
+            <option value="">Select a project</option>
+            ${allProjects.map(p => `<option value="${p.id}">${escapeHtml(p.name)}</option>`).join('')}
+          </select>
+        </label>
+
+        <label class="form-label">
+          Section (optional)
+          <select id="sectionSelect" class="form-select">
+            <option value="">No section</option>
+          </select>
+        </label>
+
+        <button id="createTaskBtn" class="btn create-task-btn">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+            <rect x="2" y="2" width="12" height="12" rx="1" stroke="currentColor" stroke-width="1.5" fill="none"/>
+            <line x1="4" y1="6" x2="12" y2="6" stroke="currentColor" stroke-width="1.5"/>
+            <line x1="4" y1="8" x2="10" y2="8" stroke="currentColor" stroke-width="1.5"/>
+            <line x1="4" y1="10" x2="11" y2="10" stroke="currentColor" stroke-width="1.5"/>
+          </svg>
+          Create Task
+        </button>
+      </div>
+    </div>
+  `;
+
+  document.getElementById('backBtn').addEventListener('click', showMenu);
+  document.getElementById('settingsBtn').addEventListener('click', openSettings);
+  document.getElementById('projectSelect').addEventListener('change', updateSectionOptions);
+  document.getElementById('createTaskBtn').addEventListener('click', createTask);
 }
 
 function updateSectionOptions() {
-  const projectId = document.getElementById('modalProjectSelect').value;
-  const sectionSelect = document.getElementById('modalSectionSelect');
+  const projectId = document.getElementById('projectSelect').value;
+  const sectionSelect = document.getElementById('sectionSelect');
 
   if (!projectId) {
     sectionSelect.innerHTML = '<option value="">No section</option>';
@@ -462,9 +529,9 @@ function updateSectionOptions() {
     projectSections.map(s => `<option value="${s.id}">${escapeHtml(s.name)}</option>`).join('');
 }
 
-async function createNewTask() {
-  const projectId = document.getElementById('modalProjectSelect').value;
-  const sectionId = document.getElementById('modalSectionSelect').value;
+async function createTask() {
+  const projectId = document.getElementById('projectSelect').value;
+  const sectionId = document.getElementById('sectionSelect').value;
   const customTitle = document.getElementById('taskTitle').value.trim();
 
   if (!projectId) {
@@ -473,18 +540,24 @@ async function createNewTask() {
   }
 
   try {
-    updateStatus('Creating task from email...', 'info');
+    updateStatus('Creating task...', 'info');
 
     const response = await browser.runtime.sendMessage({ type: 'GET_CURRENT_MESSAGE' });
-    if (!response.success || !response.message) {
-      updateStatus('No email selected', 'error');
-      return;
+
+    let taskTitle, taskDescription;
+
+    if (response.success && response.message) {
+      taskTitle = customTitle || response.message.subject || 'No Subject';
+      taskDescription = response.message.body || '';
+    } else {
+      if (!customTitle) {
+        updateStatus('Please enter a task title or select an email', 'error');
+        return;
+      }
+      taskTitle = customTitle;
+      taskDescription = '';
     }
 
-    const taskTitle = customTitle || response.message.subject || 'No Subject';
-    const taskDescription = response.message.body || '';
-
-    // Create task via background script
     const taskPayload = {
       content: taskTitle,
       description: taskDescription,
@@ -501,11 +574,10 @@ async function createNewTask() {
     });
 
     if (taskResponse.success) {
-      updateStatus('Task created successfully!', 'success');
-      closeAddTaskModal();
-
-      // Refresh tasks
-      await loadTaskInterface();
+      updateStatus('Task created!', 'success');
+      document.getElementById('taskTitle').value = '';
+      document.getElementById('projectSelect').value = '';
+      document.getElementById('sectionSelect').value = '';
     } else {
       updateStatus(`Failed: ${taskResponse.error}`, 'error');
     }

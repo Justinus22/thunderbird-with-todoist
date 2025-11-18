@@ -4,6 +4,7 @@
 let allTasks = [];
 let allProjects = [];
 let allLabels = [];
+let allSections = [];
 let selectedTask = null;
 
 // Utility functions
@@ -117,15 +118,17 @@ async function loadTaskInterface() {
   `;
 
   try {
-    const [tasksResponse, projectsResponse, labelsResponse] = await Promise.all([
+    const [tasksResponse, projectsResponse, labelsResponse, sectionsResponse] = await Promise.all([
       browser.runtime.sendMessage({ action: 'GET_ALL_TASKS' }),
       browser.runtime.sendMessage({ action: 'GET_PROJECTS' }),
-      browser.runtime.sendMessage({ action: 'GET_LABELS' })
+      browser.runtime.sendMessage({ action: 'GET_LABELS' }),
+      browser.runtime.sendMessage({ action: 'GET_SECTIONS' })
     ]);
 
     allTasks = tasksResponse.success ? tasksResponse.data : [];
     allProjects = projectsResponse.success ? projectsResponse.projects : [];
     allLabels = labelsResponse.success ? labelsResponse.data : [];
+    allSections = sectionsResponse.success ? sectionsResponse.data : [];
 
     renderInterface();
     await loadSavedFilters();
@@ -138,6 +141,16 @@ async function loadTaskInterface() {
 function renderInterface() {
   document.getElementById('main-content').innerHTML = `
     <div class="task-interface">
+      <div class="header">
+        <h3>Tasks</h3>
+        <button id="settingsBtn" class="icon-btn" title="Settings">
+          <svg width="20" height="20" viewBox="0 0 20 20" fill="currentColor">
+            <path d="M10 6a4 4 0 100 8 4 4 0 000-8zm-2 4a2 2 0 114 0 2 2 0 01-4 0z"/>
+            <path d="M10 0C9.651 0 9.303.025 8.959.075l-.866 2.033A8.07 8.07 0 006.5 3.232L4.232 2.366l-.866.5a10 10 0 00-1.5 2.598l.866.5 1.768 1.036v2l-1.768 1.036-.866.5a10 10 0 001.5 2.598l.866.5 2.268-.866a8.07 8.07 0 001.593 1.124l.866 2.033c.344.05.692.075 1.041.075s.697-.025 1.041-.075l.866-2.033a8.07 8.07 0 001.593-1.124l2.268.866.866-.5a10 10 0 001.5-2.598l-.866-.5-1.768-1.036v-2l1.768-1.036.866-.5a10 10 0 00-1.5-2.598l-.866-.5-2.268.866a8.07 8.07 0 00-1.593-1.124L11.041.075A10.07 10.07 0 0010 0z"/>
+          </svg>
+        </button>
+      </div>
+
       <div id="status" class="status info hidden"></div>
 
       <div class="search-filters">
@@ -165,14 +178,59 @@ function renderInterface() {
         <div id="selectedTaskDisplay" class="selected-task">
           <p>No task selected</p>
         </div>
-        <button id="attachEmailBtn" class="attach-email-btn" disabled>
-          Add Email as Subtask
-        </button>
+        <div class="action-buttons">
+          <button id="attachEmailBtn" class="action-btn subnote-btn" disabled>
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+              <path d="M8 2v12M2 8h12" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+            </svg>
+            Subnote
+          </button>
+          <button id="addTaskBtn" class="action-btn add-task-btn">
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+              <path d="M14 3H2a1 1 0 00-1 1v8a1 1 0 001 1h12a1 1 0 001-1V4a1 1 0 00-1-1zM4 6h8v1H4V6zm0 2h6v1H4V8z"/>
+            </svg>
+            Add Task
+          </button>
+        </div>
+      </div>
+
+      <!-- Add Task Modal -->
+      <div id="addTaskModal" class="modal hidden">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h3>Create New Task from Email</h3>
+            <button id="closeModal" class="close-btn">&times;</button>
+          </div>
+          <div class="modal-body">
+            <label>
+              Task Title
+              <input type="text" id="taskTitle" class="modal-input" placeholder="Email subject will be used">
+            </label>
+            <label>
+              Project *
+              <select id="modalProjectSelect" class="modal-select">
+                <option value="">Select a project</option>
+                ${allProjects.map(p => `<option value="${p.id}">${escapeHtml(p.name)}</option>`).join('')}
+              </select>
+            </label>
+            <label>
+              Section (optional)
+              <select id="modalSectionSelect" class="modal-select">
+                <option value="">No section</option>
+              </select>
+            </label>
+          </div>
+          <div class="modal-footer">
+            <button id="cancelTaskBtn" class="btn-secondary">Cancel</button>
+            <button id="createTaskBtn" class="btn">Create Task</button>
+          </div>
+        </div>
       </div>
     </div>
   `;
 
   // Attach event listeners
+  document.getElementById('settingsBtn').addEventListener('click', openSettings);
   document.getElementById('taskSearch').addEventListener('input', debounce(applyFilters, 300));
   document.getElementById('projectFilter').addEventListener('change', () => {
     saveFilters();
@@ -184,6 +242,13 @@ function renderInterface() {
   });
   document.getElementById('clearFilters').addEventListener('click', clearFilters);
   document.getElementById('attachEmailBtn').addEventListener('click', attachEmail);
+  document.getElementById('addTaskBtn').addEventListener('click', openAddTaskModal);
+
+  // Modal event listeners
+  document.getElementById('closeModal').addEventListener('click', closeAddTaskModal);
+  document.getElementById('cancelTaskBtn').addEventListener('click', closeAddTaskModal);
+  document.getElementById('createTaskBtn').addEventListener('click', createNewTask);
+  document.getElementById('modalProjectSelect').addEventListener('change', updateSectionOptions);
 }
 
 function applyFilters() {
@@ -348,6 +413,105 @@ function clearFilters() {
 
   browser.storage.local.remove('taskFilters');
   applyFilters();
+}
+
+// Settings
+async function openSettings() {
+  try {
+    await browser.tabs.create({
+      url: browser.runtime.getURL('config.html'),
+      active: true
+    });
+  } catch (error) {
+    updateStatus('Failed to open settings', 'error');
+  }
+}
+
+// Add Task Modal
+function openAddTaskModal() {
+  const modal = document.getElementById('addTaskModal');
+  if (modal) {
+    modal.classList.remove('hidden');
+
+    // Reset form
+    document.getElementById('taskTitle').value = '';
+    document.getElementById('modalProjectSelect').value = '';
+    document.getElementById('modalSectionSelect').value = '';
+    document.getElementById('modalSectionSelect').innerHTML = '<option value="">No section</option>';
+  }
+}
+
+function closeAddTaskModal() {
+  const modal = document.getElementById('addTaskModal');
+  if (modal) {
+    modal.classList.add('hidden');
+  }
+}
+
+function updateSectionOptions() {
+  const projectId = document.getElementById('modalProjectSelect').value;
+  const sectionSelect = document.getElementById('modalSectionSelect');
+
+  if (!projectId) {
+    sectionSelect.innerHTML = '<option value="">No section</option>';
+    return;
+  }
+
+  const projectSections = allSections.filter(s => s.project_id === projectId);
+  sectionSelect.innerHTML = '<option value="">No section</option>' +
+    projectSections.map(s => `<option value="${s.id}">${escapeHtml(s.name)}</option>`).join('');
+}
+
+async function createNewTask() {
+  const projectId = document.getElementById('modalProjectSelect').value;
+  const sectionId = document.getElementById('modalSectionSelect').value;
+  const customTitle = document.getElementById('taskTitle').value.trim();
+
+  if (!projectId) {
+    updateStatus('Please select a project', 'error');
+    return;
+  }
+
+  try {
+    updateStatus('Creating task from email...', 'info');
+
+    const response = await browser.runtime.sendMessage({ type: 'GET_CURRENT_MESSAGE' });
+    if (!response.success || !response.message) {
+      updateStatus('No email selected', 'error');
+      return;
+    }
+
+    const taskTitle = customTitle || response.message.subject || 'No Subject';
+    const taskDescription = response.message.body || '';
+
+    // Create task via background script
+    const taskPayload = {
+      content: taskTitle,
+      description: taskDescription,
+      project_id: projectId
+    };
+
+    if (sectionId) {
+      taskPayload.section_id = sectionId;
+    }
+
+    const taskResponse = await browser.runtime.sendMessage({
+      type: 'CREATE_TASK',
+      taskData: taskPayload
+    });
+
+    if (taskResponse.success) {
+      updateStatus('Task created successfully!', 'success');
+      closeAddTaskModal();
+
+      // Refresh tasks
+      await loadTaskInterface();
+    } else {
+      updateStatus(`Failed: ${taskResponse.error}`, 'error');
+    }
+  } catch (error) {
+    updateStatus('Error creating task', 'error');
+  }
 }
 
 // Initialize on load

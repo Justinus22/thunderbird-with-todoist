@@ -186,6 +186,23 @@ async function getLabels() {
   }
 }
 
+async function createTask(taskData) {
+  if (!taskData || !taskData.content || !taskData.project_id) {
+    return { success: false, error: 'Task content and project ID are required' };
+  }
+
+  try {
+    const task = await fetchTodoist('/tasks', {
+      method: 'POST',
+      body: JSON.stringify(taskData)
+    });
+
+    return { success: true, data: { task } };
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
+}
+
 async function createEmailSubtask(parentTaskId, emailSubject, emailBody) {
   if (!parentTaskId || !emailSubject) {
     return { success: false, error: 'Parent task ID and email subject are required' };
@@ -264,6 +281,9 @@ browser.runtime.onMessage.addListener(async (message) => {
 
       case 'CREATE_EMAIL_SUBTASK':
         return await createEmailSubtask(message.parentTaskId, message.emailSubject, message.emailBody);
+
+      case 'CREATE_TASK':
+        return await createTask(message.taskData);
 
       default:
         return { success: false, error: 'Unknown message type' };

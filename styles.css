@@ -190,6 +190,118 @@ body {
   font-size: 12px;
 }
 
+/* Label Filter */
+.label-filter-container {
+  flex: 1;
+  position: relative;
+}
+
+.label-filter-btn {
+  width: 100%;
+  padding: 6px;
+  border: 1px solid #404040;
+  border-radius: 4px;
+  background: #1e1e1e;
+  color: #ffffff;
+  font-size: 12px;
+  cursor: pointer;
+  text-align: left;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.label-filter-btn:hover {
+  background: #2a2a2a;
+}
+
+.label-count {
+  color: #db4c3f;
+  font-weight: bold;
+}
+
+.label-dropdown {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  background: #2a2a2a;
+  border: 1px solid #404040;
+  border-radius: 4px;
+  margin-top: 4px;
+  max-height: 250px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  z-index: 1000;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+}
+
+.label-dropdown.hidden {
+  display: none;
+}
+
+.label-search {
+  padding: 8px;
+  border: none;
+  border-bottom: 1px solid #404040;
+  background: #1e1e1e;
+  color: #ffffff;
+  font-size: 12px;
+}
+
+.label-search::placeholder {
+  color: #888;
+}
+
+.label-list {
+  flex: 1;
+  overflow-y: auto;
+  max-height: 200px;
+}
+
+.label-item {
+  display: flex;
+  align-items: center;
+  padding: 6px 8px;
+  cursor: pointer;
+  font-size: 12px;
+  gap: 8px;
+}
+
+.label-item:hover {
+  background: #333;
+}
+
+.label-checkbox {
+  width: 14px;
+  height: 14px;
+  cursor: pointer;
+}
+
+.label-exclude-btn {
+  margin-left: auto;
+  padding: 2px 6px;
+  background: #666;
+  border: none;
+  border-radius: 3px;
+  color: #fff;
+  font-size: 10px;
+  cursor: pointer;
+}
+
+.label-exclude-btn.excluded {
+  background: #d32f2f;
+}
+
+.label-exclude-btn:hover {
+  background: #888;
+}
+
+.label-exclude-btn.excluded:hover {
+  background: #c82333;
+}
+
 /* Task List */
 .task-list-container {
   flex: 1;

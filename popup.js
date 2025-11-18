@@ -7,12 +7,26 @@ let allProjects = [];
 let allLabels = [];
 let allSections = [];
 let selectedTask = null;
+let selectedLabels = []; // For include
+let excludedLabels = []; // For exclude
 
 // Utility functions
 function escapeHtml(text) {
   const div = document.createElement('div');
   div.textContent = text;
   return div.innerHTML;
+}
+
+function getProjectName(projectId) {
+  const project = allProjects.find(p => p.id === projectId);
+  return project ? project.name : 'Unknown Project';
+}
+
+function truncateText(text, maxLines = 2) {
+  if (!text) return '';
+  const lines = text.split('\n');
+  if (lines.length <= maxLines) return text;
+  return lines.slice(0, maxLines).join('\n') + '...';
 }
 
 function updateStatus(message, type = 'info') {
@@ -162,10 +176,13 @@ function renderTabbedInterface() {
               <option value="">All Projects</option>
               ${allProjects.map(p => `<option value="${p.id}">${escapeHtml(p.name)}</option>`).join('')}
             </select>
-            <select id="labelFilter" class="filter-select">
-              <option value="">All Labels</option>
-              ${allLabels.map(l => `<option value="${l.name}">${escapeHtml(l.name)}</option>`).join('')}
-            </select>
+            <div class="label-filter-container">
+              <button id="labelFilterBtn" class="label-filter-btn">Labels <span class="label-count"></span> ▼</button>
+              <div id="labelFilterDropdown" class="label-dropdown hidden">
+                <input type="text" id="labelSearch" placeholder="Search labels..." class="label-search">
+                <div id="labelList" class="label-list"></div>
+              </div>
+            </div>
           </div>
         </div>
 
@@ -233,10 +250,13 @@ function renderTabbedInterface() {
               <option value="">All Projects</option>
               ${allProjects.map(p => `<option value="${p.id}">${escapeHtml(p.name)}</option>`).join('')}
             </select>
-            <select id="notesLabelFilter" class="filter-select">
-              <option value="">All Labels</option>
-              ${allLabels.map(l => `<option value="${l.name}">${escapeHtml(l.name)}</option>`).join('')}
-            </select>
+            <div class="label-filter-container">
+              <button id="notesLabelFilterBtn" class="label-filter-btn">Labels <span class="label-count"></span> ▼</button>
+              <div id="notesLabelFilterDropdown" class="label-dropdown hidden">
+                <input type="text" id="notesLabelSearch" placeholder="Search labels..." class="label-search">
+                <div id="notesLabelList" class="label-list"></div>
+              </div>
+            </div>
           </div>
         </div>
 
@@ -364,7 +384,7 @@ function displayTasks(tasks) {
     <div class="task-item" data-task-id="${task.id}">
       <div class="task-title">${escapeHtml(task.content)}</div>
       <div class="task-meta">
-        <span class="task-project">Project ${task.project_id}</span>
+        <span class="task-project">${escapeHtml(getProjectName(task.project_id))}</span>
         ${task.due ? `<span class="task-due">${formatDueDate(task.due.date)}</span>` : ''}
         ${task.labels?.length ? `<span class="task-labels">${task.labels.map(l => `#${l}`).join(' ')}</span>` : ''}
       </div>
@@ -402,10 +422,13 @@ function selectTask(task) {
 
   const display = document.getElementById('selectedTaskDisplay');
   if (display) {
+    const description = task.description ? task.description.split('---')[0].trim() : '';
+    const truncatedDesc = truncateText(description, 2);
+
     display.innerHTML = `
       <div class="selected-task-info">
         <h4>${escapeHtml(task.content)}</h4>
-        ${task.description ? `<p class="task-description">${escapeHtml(task.description.split('---')[0].trim())}</p>` : ''}
+        ${truncatedDesc ? `<p class="task-description" style="max-height: 3em; overflow: hidden; line-height: 1.5em;">${escapeHtml(truncatedDesc)}</p>` : ''}
         <div class="task-meta">
           ${task.labels?.length ? `<span class="task-labels">${task.labels.join(', ')}</span>` : ''}
           ${task.due ? `<span class="task-due">Due: ${new Date(task.due.date).toLocaleDateString()}</span>` : ''}
@@ -607,7 +630,7 @@ function displayNotes(tasks) {
     <div class="task-item" data-note-id="${task.id}">
       <div class="task-title">${escapeHtml(task.content)}</div>
       <div class="task-meta">
-        <span class="task-project">Project ${task.project_id}</span>
+        <span class="task-project">${escapeHtml(getProjectName(task.project_id))}</span>
         ${task.due ? `<span class="task-due">${formatDueDate(task.due.date)}</span>` : ''}
         <span style="color: #4CAF50;">📧</span>
       </div>
@@ -633,10 +656,13 @@ function selectNote(task) {
 
   const display = document.getElementById('selectedNoteDisplay');
   if (display) {
+    const description = task.description ? task.description.split('---')[0].trim() : '';
+    const truncatedDesc = truncateText(description, 2);
+
     display.innerHTML = `
       <div class="selected-task-info">
         <h4>${escapeHtml(task.content)}</h4>
-        ${task.description ? `<p class="task-description">${escapeHtml(task.description.split('---')[0].trim())}</p>` : ''}
+        ${truncatedDesc ? `<p class="task-description" style="max-height: 3em; overflow: hidden; line-height: 1.5em;">${escapeHtml(truncatedDesc)}</p>` : ''}
         <div class="task-meta">
           ${task.labels?.length ? `<span class="task-labels">${task.labels.join(', ')}</span>` : ''}
           ${task.due ? `<span class="task-due">Due: ${new Date(task.due.date).toLocaleDateString()}</span>` : ''}

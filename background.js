@@ -117,7 +117,11 @@ async function getCurrentMessage() {
       const message = await method();
       if (message) {
         const fullMessage = await browser.messages.getFull(message.id);
-        return { ...message, body: extractTextBody(fullMessage) };
+        return {
+          ...message,
+          body: extractTextBody(fullMessage),
+          headerMessageId: message.headerMessageId
+        };
       }
     } catch (error) {
       continue;
@@ -125,6 +129,21 @@ async function getCurrentMessage() {
   }
 
   return null;
+}
+
+// Generate email link for task description
+function generateEmailLink(headerMessageId, subject) {
+  if (!headerMessageId) return '';
+
+  // Store the headerMessageId as plain text metadata that we can parse later
+  return `\n\n---\n📧 Email ID: ${headerMessageId}`;
+}
+
+// Extract headerMessageId from task description
+function extractEmailId(description) {
+  if (!description) return null;
+  const match = description.match(/📧 Email ID: (.+?)(?:\n|$)/);
+  return match ? match[1].trim() : null;
 }
 
 // API endpoints
@@ -186,16 +205,25 @@ async function getLabels() {
   }
 }
 
-async function createTask(taskData) {
+async function createTask(taskData, headerMessageId = null) {
   if (!taskData || !taskData.content || !taskData.project_id) {
     return { success: false, error: 'Task content and project ID are required' };
   }
 
   try {
+    // Add email link to description if headerMessageId is provided
+    if (headerMessageId && taskData.description) {
+      const emailLink = generateEmailLink(headerMessageId, taskData.content);
+      taskData.description = taskData.description + emailLink;
+    }
+
     const task = await fetchTodoist('/tasks', {
       method: 'POST',
       body: JSON.stringify(taskData)
     });
+
+    // Store last used project for keyboard shortcut
+    await browser.storage.local.set({ lastUsedProjectId: taskData.project_id });
 
     return { success: true, data: { task } };
   } catch (error) {
@@ -203,21 +231,27 @@ async function createTask(taskData) {
   }
 }
 
-async function createEmailSubtask(parentTaskId, emailSubject, emailBody) {
+async function createEmailSubtask(parentTaskId, emailSubject, emailBody, headerMessageId) {
   if (!parentTaskId || !emailSubject) {
     return { success: false, error: 'Parent task ID and email subject are required' };
   }
 
   try {
+    const emailLink = generateEmailLink(headerMessageId, emailSubject);
+    const description = (emailBody || 'No email content available') + emailLink;
+
     const subtask = await fetchTodoist('/tasks', {
       method: 'POST',
       body: JSON.stringify({
         content: `* ${emailSubject}`,
-        description: emailBody || 'No email content available',
+        description: description,
         parent_id: parentTaskId,
         priority: 1
       })
     });
+
+    // Store last used task for keyboard shortcut
+    await browser.storage.local.set({ lastUsedTaskId: parentTaskId });
 
     return { success: true, data: { subtask } };
   } catch (error) {
@@ -237,6 +271,16 @@ async function addEmailComment(taskId, content) {
     });
 
     return { success: true, data: comment };
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
+}
+
+// Open email from Todoist link
+async function openEmailFromLink(headerMessageId) {
+  try {
+    await browser.messageDisplay.open({ headerMessageId });
+    return { success: true };
   } catch (error) {
     return { success: false, error: error.message };
   }
@@ -280,15 +324,48 @@ browser.runtime.onMessage.addListener(async (message) => {
         return await addEmailComment(message.taskId, message.content);
 
       case 'CREATE_EMAIL_SUBTASK':
-        return await createEmailSubtask(message.parentTaskId, message.emailSubject, message.emailBody);
+        return await createEmailSubtask(
+          message.parentTaskId,
+          message.emailSubject,
+          message.emailBody,
+          message.headerMessageId
+        );
 
       case 'CREATE_TASK':
-        return await createTask(message.taskData);
+        return await createTask(message.taskData, message.headerMessageId);
+
+      case 'OPEN_EMAIL_FROM_LINK':
+        return await openEmailFromLink(message.headerMessageId);
 
       default:
         return { success: false, error: 'Unknown message type' };
     }
   } catch (error) {
     return { success: false, error: error.message };
+  }
+});
+
+// Keyboard shortcut handlers
+browser.commands.onCommand.addListener(async (command) => {
+  try {
+    // Store which tab to open in storage
+    let targetTab = 'subnote'; // default
+
+    if (command === 'open-addtask-tab') {
+      targetTab = 'addtask';
+    } else if (command === 'open-subnote-tab') {
+      targetTab = 'subnote';
+    } else if (command === 'open-notes-tab') {
+      targetTab = 'notes';
+    }
+
+    // Store the target tab so popup.js can open the right tab
+    await browser.storage.local.set({ keyboardShortcutTab: targetTab });
+
+    // Open the popup by triggering the message display action
+    // Note: This will automatically open the popup for the current message
+    console.log(`Opening popup in ${targetTab} tab`);
+  } catch (error) {
+    console.error('Keyboard shortcut error:', error);
   }
 });

@@ -67,6 +67,14 @@ async function init() {
     const isConnected = await testConnection();
     if (isConnected) {
       await loadTabbedInterface();
+
+      // Check if opened via keyboard shortcut
+      const { keyboardShortcutTab } = await browser.storage.local.get('keyboardShortcutTab');
+      if (keyboardShortcutTab) {
+        showTab(keyboardShortcutTab);
+        // Clear the flag
+        await browser.storage.local.remove('keyboardShortcutTab');
+      }
     } else {
       showSetup();
     }
@@ -136,8 +144,9 @@ function renderTabbedInterface() {
     <div class="tabbed-interface">
       <div class="header">
         <div class="tab-buttons">
-          <button class="tab-btn active" data-tab="subnote">Add as Subnote</button>
+          <button class="tab-btn active" data-tab="subnote">Subnote</button>
           <button class="tab-btn" data-tab="addtask">Add Task</button>
+          <button class="tab-btn" data-tab="notes">Notes</button>
         </div>
         <button id="settingsBtn" class="icon-btn" title="Settings">
           <svg width="20" height="20" viewBox="0 0 20 20" fill="currentColor">
@@ -219,6 +228,42 @@ function renderTabbedInterface() {
           </button>
         </div>
       </div>
+
+      <!-- Notes Tab Content -->
+      <div class="tab-content" id="notes-tab">
+        <div class="search-filters">
+          <div class="search-container">
+            <input type="text" id="notesSearch" placeholder="Search notes..." class="search-input">
+            <button id="clearNotesFilters" class="clear-filters-btn">Clear</button>
+          </div>
+          <div class="filter-row">
+            <select id="notesProjectFilter" class="filter-select">
+              <option value="">All Projects</option>
+              ${allProjects.map(p => `<option value="${p.id}">${escapeHtml(p.name)}</option>`).join('')}
+            </select>
+            <select id="notesLabelFilter" class="filter-select">
+              <option value="">All Labels</option>
+              ${allLabels.map(l => `<option value="${l.name}">${escapeHtml(l.name)}</option>`).join('')}
+            </select>
+          </div>
+        </div>
+
+        <div class="task-list-container">
+          <div id="notesList" class="task-list"></div>
+        </div>
+
+        <div class="selected-task-area">
+          <div id="selectedNoteDisplay" class="selected-task">
+            <p>No note selected</p>
+          </div>
+          <button id="openEmailFromNoteBtn" class="action-btn" disabled style="width: 100%; background: #4CAF50;">
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+              <path d="M2 3h12v10H2V3zm0 0l6 4 6-4M2 13l4-3m8 3l-4-3" stroke="currentColor" stroke-width="1.5" fill="none"/>
+            </svg>
+            Open Email
+          </button>
+        </div>
+      </div>
     </div>
   `;
 
@@ -249,6 +294,13 @@ function renderTabbedInterface() {
   // Add task tab listeners
   document.getElementById('projectSelect').addEventListener('change', updateSectionOptions);
   document.getElementById('createTaskBtn').addEventListener('click', createTask);
+
+  // Notes tab listeners
+  document.getElementById('notesSearch').addEventListener('input', debounce(applyNotesFilters, 300));
+  document.getElementById('notesProjectFilter').addEventListener('change', applyNotesFilters);
+  document.getElementById('notesLabelFilter').addEventListener('change', applyNotesFilters);
+  document.getElementById('clearNotesFilters').addEventListener('click', clearNotesFilters);
+  document.getElementById('openEmailFromNoteBtn').addEventListener('click', openEmailFromNote);
 }
 
 function showTab(tabName) {
@@ -272,6 +324,8 @@ function showTab(tabName) {
   // If showing subnote tab, display tasks
   if (tabName === 'subnote') {
     applyFilters();
+  } else if (tabName === 'notes') {
+    applyNotesFilters();
   }
 }
 
@@ -359,7 +413,7 @@ function selectTask(task) {
     display.innerHTML = `
       <div class="selected-task-info">
         <h4>${escapeHtml(task.content)}</h4>
-        ${task.description ? `<p class="task-description">${escapeHtml(task.description)}</p>` : ''}
+        ${task.description ? `<p class="task-description">${escapeHtml(task.description.split('---')[0].trim())}</p>` : ''}
         <div class="task-meta">
           ${task.labels?.length ? `<span class="task-labels">${task.labels.join(', ')}</span>` : ''}
           ${task.due ? `<span class="task-due">Due: ${new Date(task.due.date).toLocaleDateString()}</span>` : ''}
@@ -391,7 +445,8 @@ async function attachEmail() {
       type: 'CREATE_EMAIL_SUBTASK',
       parentTaskId: selectedTask.id,
       emailSubject: response.message.subject || 'No Subject',
-      emailBody: response.message.body || ''
+      emailBody: response.message.body || '',
+      headerMessageId: response.message.headerMessageId
     });
 
     if (subtaskResponse.success) {
@@ -478,11 +533,12 @@ async function createTask() {
 
     const response = await browser.runtime.sendMessage({ type: 'GET_CURRENT_MESSAGE' });
 
-    let taskTitle, taskDescription;
+    let taskTitle, taskDescription, headerMessageId;
 
     if (response.success && response.message) {
       taskTitle = customTitle || response.message.subject || 'No Subject';
       taskDescription = response.message.body || '';
+      headerMessageId = response.message.headerMessageId;
     } else {
       if (!customTitle) {
         updateStatus('Please enter a task title or select an email', 'error');
@@ -490,6 +546,7 @@ async function createTask() {
       }
       taskTitle = customTitle;
       taskDescription = '';
+      headerMessageId = null;
     }
 
     const taskPayload = {
@@ -504,7 +561,8 @@ async function createTask() {
 
     const taskResponse = await browser.runtime.sendMessage({
       type: 'CREATE_TASK',
-      taskData: taskPayload
+      taskData: taskPayload,
+      headerMessageId: headerMessageId
     });
 
     if (taskResponse.success) {
@@ -518,6 +576,127 @@ async function createTask() {
   } catch (error) {
     updateStatus('Error creating task', 'error');
   }
+}
+
+// Notes tab functions
+function applyNotesFilters() {
+  const searchTerm = document.getElementById('notesSearch')?.value.toLowerCase() || '';
+  const projectFilter = document.getElementById('notesProjectFilter')?.value || '';
+  const labelFilter = document.getElementById('notesLabelFilter')?.value || '';
+
+  // Filter tasks that have email IDs
+  const filtered = allTasks.filter(task => {
+    const hasEmailId = task.description && task.description.includes('📧 Email ID:');
+    if (!hasEmailId) return false;
+
+    const matchesSearch = !searchTerm ||
+      task.content.toLowerCase().includes(searchTerm) ||
+      (task.description?.toLowerCase().includes(searchTerm));
+
+    const matchesProject = !projectFilter || task.project_id === projectFilter;
+    const matchesLabel = !labelFilter || task.labels?.includes(labelFilter);
+
+    return matchesSearch && matchesProject && matchesLabel;
+  });
+
+  displayNotes(filtered);
+}
+
+function displayNotes(tasks) {
+  const notesList = document.getElementById('notesList');
+  if (!notesList) return;
+
+  if (tasks.length === 0) {
+    notesList.innerHTML = '<div style="padding: 20px; text-align: center; color: #666;">No notes with emails found</div>';
+    return;
+  }
+
+  notesList.innerHTML = tasks.map(task => `
+    <div class="task-item" data-note-id="${task.id}">
+      <div class="task-title">${escapeHtml(task.content)}</div>
+      <div class="task-meta">
+        <span class="task-project">Project ${task.project_id}</span>
+        ${task.due ? `<span class="task-due">${formatDueDate(task.due.date)}</span>` : ''}
+        <span style="color: #4CAF50;">📧</span>
+      </div>
+    </div>
+  `).join('');
+
+  notesList.querySelectorAll('.task-item').forEach(el => {
+    el.addEventListener('click', () => {
+      const taskId = el.dataset.noteId;
+      const task = allTasks.find(t => t.id === taskId);
+      if (task) selectNote(task);
+    });
+  });
+}
+
+function selectNote(task) {
+  document.querySelectorAll('.task-item').forEach(el => el.classList.remove('selected'));
+
+  const noteElement = document.querySelector(`[data-note-id="${task.id}"]`);
+  if (noteElement) noteElement.classList.add('selected');
+
+  selectedTask = task;
+
+  const display = document.getElementById('selectedNoteDisplay');
+  if (display) {
+    display.innerHTML = `
+      <div class="selected-task-info">
+        <h4>${escapeHtml(task.content)}</h4>
+        ${task.description ? `<p class="task-description">${escapeHtml(task.description.split('---')[0].trim())}</p>` : ''}
+        <div class="task-meta">
+          ${task.labels?.length ? `<span class="task-labels">${task.labels.join(', ')}</span>` : ''}
+          ${task.due ? `<span class="task-due">Due: ${new Date(task.due.date).toLocaleDateString()}</span>` : ''}
+        </div>
+      </div>
+    `;
+  }
+
+  const openEmailBtn = document.getElementById('openEmailFromNoteBtn');
+  if (openEmailBtn) openEmailBtn.disabled = false;
+}
+
+async function openEmailFromNote() {
+  if (!selectedTask || !selectedTask.description) {
+    updateStatus('No note selected', 'error');
+    return;
+  }
+
+  const match = selectedTask.description.match(/📧 Email ID: (.+?)(?:\n|$)/);
+  if (!match) {
+    updateStatus('No email ID found', 'error');
+    return;
+  }
+
+  const headerMessageId = match[1].trim();
+
+  try {
+    const response = await browser.runtime.sendMessage({
+      type: 'OPEN_EMAIL_FROM_LINK',
+      headerMessageId: headerMessageId
+    });
+
+    if (response.success) {
+      updateStatus('Opening email...', 'success');
+    } else {
+      updateStatus(`Failed to open email: ${response.error}`, 'error');
+    }
+  } catch (error) {
+    updateStatus('Error opening email', 'error');
+  }
+}
+
+function clearNotesFilters() {
+  const notesSearch = document.getElementById('notesSearch');
+  const notesProjectFilter = document.getElementById('notesProjectFilter');
+  const notesLabelFilter = document.getElementById('notesLabelFilter');
+
+  if (notesSearch) notesSearch.value = '';
+  if (notesProjectFilter) notesProjectFilter.value = '';
+  if (notesLabelFilter) notesLabelFilter.value = '';
+
+  applyNotesFilters();
 }
 
 // Initialize on load

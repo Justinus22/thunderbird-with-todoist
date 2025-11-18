@@ -296,10 +296,7 @@ function renderTabbedInterface() {
     saveFilters();
     applyFilters();
   });
-  document.getElementById('labelFilter').addEventListener('change', () => {
-    saveFilters();
-    applyFilters();
-  });
+  setupLabelFilter('labelFilterBtn', 'labelFilterDropdown', 'labelSearch', 'labelList', 'subnote');
   document.getElementById('clearFilters').addEventListener('click', clearFilters);
   document.getElementById('attachEmailBtn').addEventListener('click', attachEmail);
 
@@ -310,9 +307,126 @@ function renderTabbedInterface() {
   // Notes tab listeners
   document.getElementById('notesSearch').addEventListener('input', debounce(applyNotesFilters, 300));
   document.getElementById('notesProjectFilter').addEventListener('change', applyNotesFilters);
-  document.getElementById('notesLabelFilter').addEventListener('change', applyNotesFilters);
+  setupLabelFilter('notesLabelFilterBtn', 'notesLabelFilterDropdown', 'notesLabelSearch', 'notesLabelList', 'notes');
   document.getElementById('clearNotesFilters').addEventListener('click', clearNotesFilters);
   document.getElementById('openEmailFromNoteBtn').addEventListener('click', openEmailFromNote);
+}
+
+// Label filter management
+function setupLabelFilter(btnId, dropdownId, searchId, listId, tabType) {
+  const btn = document.getElementById(btnId);
+  const dropdown = document.getElementById(dropdownId);
+  const search = document.getElementById(searchId);
+  const list = document.getElementById(listId);
+
+  // Populate label list
+  renderLabelList(listId, allLabels, tabType);
+
+  // Toggle dropdown
+  btn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    dropdown.classList.toggle('hidden');
+  });
+
+  // Close dropdown when clicking outside
+  document.addEventListener('click', (e) => {
+    if (!dropdown.contains(e.target) && e.target !== btn) {
+      dropdown.classList.add('hidden');
+    }
+  });
+
+  // Search labels
+  search.addEventListener('input', () => {
+    const query = search.value.toLowerCase();
+    const filtered = allLabels.filter(l => l.name.toLowerCase().includes(query));
+    renderLabelList(listId, filtered, tabType);
+  });
+
+  // Update count display
+  updateLabelCount(btn);
+}
+
+function renderLabelList(listId, labels, tabType) {
+  const list = document.getElementById(listId);
+  if (!list) return;
+
+  list.innerHTML = labels.map(label => {
+    const isSelected = selectedLabels.includes(label.name);
+    const isExcluded = excludedLabels.includes(label.name);
+
+    return `
+      <div class="label-item" data-label="${escapeHtml(label.name)}">
+        <input type="checkbox"
+          class="label-checkbox"
+          ${isSelected ? 'checked' : ''}
+          data-label="${escapeHtml(label.name)}">
+        <span>${escapeHtml(label.name)}</span>
+        <button class="label-exclude-btn ${isExcluded ? 'excluded' : ''}"
+          data-label="${escapeHtml(label.name)}">
+          ${isExcluded ? '✗ Excl' : 'Excl'}
+        </button>
+      </div>
+    `;
+  }).join('');
+
+  // Add event listeners for checkboxes
+  list.querySelectorAll('.label-checkbox').forEach(cb => {
+    cb.addEventListener('change', (e) => {
+      e.stopPropagation();
+      const labelName = cb.dataset.label;
+      if (cb.checked) {
+        if (!selectedLabels.includes(labelName)) {
+          selectedLabels.push(labelName);
+        }
+        // Remove from excluded if adding
+        excludedLabels = excludedLabels.filter(l => l !== labelName);
+      } else {
+        selectedLabels = selectedLabels.filter(l => l !== labelName);
+      }
+      updateLabelCount(document.getElementById(tabType === 'subnote' ? 'labelFilterBtn' : 'notesLabelFilterBtn'));
+      renderLabelList(listId, labels, tabType); // Re-render to update exclude button
+      if (tabType === 'subnote') {
+        applyFilters();
+      } else {
+        applyNotesFilters();
+      }
+    });
+  });
+
+  // Add event listeners for exclude buttons
+  list.querySelectorAll('.label-exclude-btn').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const labelName = btn.dataset.label;
+      if (excludedLabels.includes(labelName)) {
+        excludedLabels = excludedLabels.filter(l => l !== labelName);
+      } else {
+        excludedLabels.push(labelName);
+        // Remove from selected if excluding
+        selectedLabels = selectedLabels.filter(l => l !== labelName);
+      }
+      updateLabelCount(document.getElementById(tabType === 'subnote' ? 'labelFilterBtn' : 'notesLabelFilterBtn'));
+      renderLabelList(listId, labels, tabType); // Re-render to update
+      if (tabType === 'subnote') {
+        applyFilters();
+      } else {
+        applyNotesFilters();
+      }
+    });
+  });
+}
+
+function updateLabelCount(btn) {
+  if (!btn) return;
+  const countSpan = btn.querySelector('.label-count');
+  if (!countSpan) return;
+
+  const total = selectedLabels.length + excludedLabels.length;
+  if (total > 0) {
+    countSpan.textContent = `(${selectedLabels.length > 0 ? '+' + selectedLabels.length : ''}${excludedLabels.length > 0 ? ' -' + excludedLabels.length : ''})`;
+  } else {
+    countSpan.textContent = '';
+  }
 }
 
 function showTab(tabName) {
@@ -355,7 +469,6 @@ async function openSettings() {
 function applyFilters() {
   const searchTerm = document.getElementById('taskSearch')?.value.toLowerCase() || '';
   const projectFilter = document.getElementById('projectFilter')?.value || '';
-  const labelFilter = document.getElementById('labelFilter')?.value || '';
 
   const filtered = allTasks.filter(task => {
     const matchesSearch = !searchTerm ||
@@ -363,9 +476,17 @@ function applyFilters() {
       (task.description?.toLowerCase().includes(searchTerm));
 
     const matchesProject = !projectFilter || task.project_id === projectFilter;
-    const matchesLabel = !labelFilter || task.labels?.includes(labelFilter);
 
-    return matchesSearch && matchesProject && matchesLabel;
+    // Label filtering: must have ALL selected labels AND must NOT have any excluded labels
+    let matchesLabels = true;
+    if (selectedLabels.length > 0) {
+      matchesLabels = selectedLabels.every(label => task.labels?.includes(label));
+    }
+    if (excludedLabels.length > 0) {
+      matchesLabels = matchesLabels && !excludedLabels.some(label => task.labels?.includes(label));
+    }
+
+    return matchesSearch && matchesProject && matchesLabels;
   });
 
   displayTasks(filtered);
@@ -509,11 +630,15 @@ async function saveFilters() {
 function clearFilters() {
   const taskSearch = document.getElementById('taskSearch');
   const projectFilter = document.getElementById('projectFilter');
-  const labelFilter = document.getElementById('labelFilter');
 
   if (taskSearch) taskSearch.value = '';
   if (projectFilter) projectFilter.value = '';
-  if (labelFilter) labelFilter.value = '';
+
+  // Clear label selections
+  selectedLabels = [];
+  excludedLabels = [];
+  updateLabelCount(document.getElementById('labelFilterBtn'));
+  renderLabelList('labelList', allLabels, 'subnote');
 
   browser.storage.local.remove('taskFilters');
   applyFilters();
@@ -597,7 +722,6 @@ async function createTask() {
 function applyNotesFilters() {
   const searchTerm = document.getElementById('notesSearch')?.value.toLowerCase() || '';
   const projectFilter = document.getElementById('notesProjectFilter')?.value || '';
-  const labelFilter = document.getElementById('notesLabelFilter')?.value || '';
 
   // Filter tasks that have email IDs
   const filtered = allTasks.filter(task => {
@@ -609,9 +733,17 @@ function applyNotesFilters() {
       (task.description?.toLowerCase().includes(searchTerm));
 
     const matchesProject = !projectFilter || task.project_id === projectFilter;
-    const matchesLabel = !labelFilter || task.labels?.includes(labelFilter);
 
-    return matchesSearch && matchesProject && matchesLabel;
+    // Label filtering: must have ALL selected labels AND must NOT have any excluded labels
+    let matchesLabels = true;
+    if (selectedLabels.length > 0) {
+      matchesLabels = selectedLabels.every(label => task.labels?.includes(label));
+    }
+    if (excludedLabels.length > 0) {
+      matchesLabels = matchesLabels && !excludedLabels.some(label => task.labels?.includes(label));
+    }
+
+    return matchesSearch && matchesProject && matchesLabels;
   });
 
   displayNotes(filtered);
@@ -708,11 +840,15 @@ async function openEmailFromNote() {
 function clearNotesFilters() {
   const notesSearch = document.getElementById('notesSearch');
   const notesProjectFilter = document.getElementById('notesProjectFilter');
-  const notesLabelFilter = document.getElementById('notesLabelFilter');
 
   if (notesSearch) notesSearch.value = '';
   if (notesProjectFilter) notesProjectFilter.value = '';
-  if (notesLabelFilter) notesLabelFilter.value = '';
+
+  // Clear label selections
+  selectedLabels = [];
+  excludedLabels = [];
+  updateLabelCount(document.getElementById('notesLabelFilterBtn'));
+  renderLabelList('notesLabelList', allLabels, 'notes');
 
   applyNotesFilters();
 }

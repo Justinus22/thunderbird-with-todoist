@@ -205,6 +205,27 @@ async function getLabels() {
   }
 }
 
+async function ensureLabelExists(labelName) {
+  try {
+    const labelsResponse = await getLabels();
+    if (!labelsResponse.success) return null;
+
+    const existingLabel = labelsResponse.data.find(l => l.name === labelName);
+    if (existingLabel) return existingLabel.name;
+
+    // Create the label
+    const newLabel = await fetchTodoist('/labels', {
+      method: 'POST',
+      body: JSON.stringify({ name: labelName })
+    });
+
+    return newLabel.name;
+  } catch (error) {
+    console.error(`Error ensuring label ${labelName} exists:`, error);
+    return null;
+  }
+}
+
 async function createTask(taskData, headerMessageId = null) {
   if (!taskData || !taskData.content || !taskData.project_id) {
     return { success: false, error: 'Task content and project ID are required' };
@@ -215,6 +236,15 @@ async function createTask(taskData, headerMessageId = null) {
     if (headerMessageId && taskData.description) {
       const emailLink = generateEmailLink(headerMessageId, taskData.content);
       taskData.description = taskData.description + emailLink;
+
+      // Add "E-Mail" label for tasks created from emails
+      const emailLabel = await ensureLabelExists('E-Mail');
+      if (emailLabel) {
+        taskData.labels = taskData.labels || [];
+        if (!taskData.labels.includes(emailLabel)) {
+          taskData.labels.push(emailLabel);
+        }
+      }
     }
 
     const task = await fetchTodoist('/tasks', {
@@ -240,13 +270,22 @@ async function createEmailSubtask(parentTaskId, emailSubject, emailBody, headerM
     const emailLink = generateEmailLink(headerMessageId, emailSubject);
     const description = (emailBody || 'No email content available') + emailLink;
 
+    // Ensure labels exist and add them
+    const emailLabel = await ensureLabelExists('E-Mail');
+    const noteLabel = await ensureLabelExists('Note');
+
+    const labels = [];
+    if (emailLabel) labels.push(emailLabel);
+    if (noteLabel) labels.push(noteLabel);
+
     const subtask = await fetchTodoist('/tasks', {
       method: 'POST',
       body: JSON.stringify({
         content: `* ${emailSubject}`,
         description: description,
         parent_id: parentTaskId,
-        priority: 1
+        priority: 1,
+        labels: labels
       })
     });
 

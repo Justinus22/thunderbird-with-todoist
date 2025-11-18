@@ -30,27 +30,6 @@
     "64": "icons/icon-64.svg"
   },
 
-  "commands": {
-    "open-addtask-tab": {
-      "suggested_key": {
-        "default": "Ctrl+Shift+T"
-      },
-      "description": "Open Todoist popup in Add Task tab"
-    },
-    "open-subnote-tab": {
-      "suggested_key": {
-        "default": "Ctrl+Shift+S"
-      },
-      "description": "Open Todoist popup in Add Subnote tab"
-    },
-    "open-notes-tab": {
-      "suggested_key": {
-        "default": "Ctrl+Shift+N"
-      },
-      "description": "Open Todoist popup in Notes tab"
-    }
-  },
-
   "host_permissions": [
     "https://api.todoist.com/*"
   ]

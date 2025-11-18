@@ -67,14 +67,6 @@ async function init() {
     const isConnected = await testConnection();
     if (isConnected) {
       await loadTabbedInterface();
-
-      // Check if opened via keyboard shortcut
-      const { keyboardShortcutTab } = await browser.storage.local.get('keyboardShortcutTab');
-      if (keyboardShortcutTab) {
-        showTab(keyboardShortcutTab);
-        // Clear the flag
-        await browser.storage.local.remove('keyboardShortcutTab');
-      }
     } else {
       showSetup();
     }

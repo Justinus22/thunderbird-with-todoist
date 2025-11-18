@@ -344,28 +344,3 @@ browser.runtime.onMessage.addListener(async (message) => {
     return { success: false, error: error.message };
   }
 });
-
-// Keyboard shortcut handlers
-browser.commands.onCommand.addListener(async (command) => {
-  try {
-    // Store which tab to open in storage
-    let targetTab = 'subnote'; // default
-
-    if (command === 'open-addtask-tab') {
-      targetTab = 'addtask';
-    } else if (command === 'open-subnote-tab') {
-      targetTab = 'subnote';
-    } else if (command === 'open-notes-tab') {
-      targetTab = 'notes';
-    }
-
-    // Store the target tab so popup.js can open the right tab
-    await browser.storage.local.set({ keyboardShortcutTab: targetTab });
-
-    // Open the popup by triggering the message display action
-    // Note: This will automatically open the popup for the current message
-    console.log(`Opening popup in ${targetTab} tab`);
-  } catch (error) {
-    console.error('Keyboard shortcut error:', error);
-  }
-});

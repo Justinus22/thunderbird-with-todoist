@@ -16,7 +16,6 @@ async function initializePage() {
   const token = await getTodoistToken();
   if (token) {
     await testConnection();
-    await loadProjects();
   }
 }
 
@@ -31,16 +30,12 @@ function setupEventListeners() {
   document.querySelectorAll('.tab-button').forEach(button => {
     button.addEventListener('click', () => switchTab(button.dataset.tab));
   });
-  
+
   // Connection tab
   document.getElementById('saveToken').addEventListener('click', saveTokenHandler);
   document.getElementById('testConnection').addEventListener('click', testConnectionHandler);
   document.getElementById('clearToken').addEventListener('click', clearTokenHandler);
-  
-  // Preferences tab
-  document.getElementById('savePreferences').addEventListener('click', savePreferencesHandler);
-  document.getElementById('resetPreferences').addEventListener('click', resetPreferencesHandler);
-  
+
   // Allow Enter key to save token
   document.getElementById('apiToken').addEventListener('keypress', (e) => {
     if (e.key === 'Enter') {
@@ -114,7 +109,6 @@ async function saveTokenHandler() {
     updateStatus('Token saved successfully!', 'success');
     tokenInput.value = '';
     await testConnection();
-    await loadProjects();
   } else {
     updateStatus('Failed to save token', 'error');
   }
@@ -138,61 +132,12 @@ async function clearTokenHandler() {
       updateStatus('Token cleared successfully', 'success');
       document.getElementById('apiToken').value = '';
       document.getElementById('statsSection').classList.add('hidden');
-      document.getElementById('defaultProject').innerHTML = '<option value="">Select a project...</option>';
     } else {
       updateStatus('Failed to clear token', 'error');
     }
   }
 }
 
-async function savePreferencesHandler() {
-  const preferences = {
-    defaultProject: document.getElementById('defaultProject').value,
-    includeBody: document.getElementById('includeBody').checked,
-    includeAttachments: document.getElementById('includeAttachments').checked,
-    includeHeaders: document.getElementById('includeHeaders').checked,
-    autoAddTodoist: document.getElementById('autoAddTodoist').checked,
-    markAsProcessed: document.getElementById('markAsProcessed').checked
-  };
-
-  const iconOnlyMode = document.getElementById('iconOnlyMode').checked;
-
-  try {
-    await browser.storage.local.set({
-      todoistPreferences: preferences,
-      iconOnlyMode: iconOnlyMode
-    });
-    updateStatus('Preferences saved successfully!', 'success');
-  } catch (error) {
-    console.error('Error saving preferences:', error);
-    updateStatus('Failed to save preferences', 'error');
-  }
-}
-
-async function resetPreferencesHandler() {
-  if (confirm('Are you sure you want to reset all preferences to defaults?')) {
-    const defaultPreferences = {
-      defaultProject: '',
-      includeBody: true,
-      includeAttachments: false,
-      includeHeaders: true,
-      autoAddTodoist: false,
-      markAsProcessed: false
-    };
-
-    try {
-      await browser.storage.local.set({
-        todoistPreferences: defaultPreferences,
-        iconOnlyMode: false
-      });
-      await loadCurrentSettings();
-      updateStatus('Preferences reset to defaults', 'success');
-    } catch (error) {
-      console.error('Error resetting preferences:', error);
-      updateStatus('Failed to reset preferences', 'error');
-    }
-  }
-}
 
 // API functions
 async function testConnection() {
@@ -242,82 +187,18 @@ async function testConnection() {
   }
 }
 
-async function loadProjects() {
-  const token = await getTodoistToken();
-  
-  if (!token) {
-    return;
-  }
-  
-  try {
-    const response = await fetch('https://api.todoist.com/api/v1/projects', {
-      method: 'GET',
-      headers: {
-        'Authorization': `Bearer ${token}`,
-        'Content-Type': 'application/json'
-      }
-    });
-    
-    if (response.ok) {
-      const projects = await response.json();
-      const projectSelect = document.getElementById('defaultProject');
-      
-      // Clear existing options
-      projectSelect.innerHTML = '<option value="">Select a project...</option>';
-      
-      // Handle v1 API response format
-      const projectList = projects.results || projects;
-      
-      if (Array.isArray(projectList)) {
-        projectList.forEach(project => {
-          const option = document.createElement('option');
-          option.value = project.id;
-          option.textContent = project.name;
-          projectSelect.appendChild(option);
-        });
-        
-        console.log(`Loaded ${projectList.length} projects for selection`);
-      }
-    }
-  } catch (error) {
-    console.error('Error loading projects:', error);
-  }
-}
 
 async function loadCurrentSettings() {
   try {
     // Load current token status
     const token = await getTodoistToken();
     const tokenInput = document.getElementById('apiToken');
-    
+
     if (token) {
       tokenInput.placeholder = 'Token is saved (hidden for security)';
     } else {
       tokenInput.placeholder = 'Enter your Todoist API token...';
     }
-    
-    // Load preferences
-    const result = await browser.storage.local.get(['todoistPreferences', 'iconOnlyMode']);
-    const preferences = result.todoistPreferences || {
-      defaultProject: '',
-      includeBody: true,
-      includeAttachments: false,
-      includeHeaders: true,
-      autoAddTodoist: false,
-      markAsProcessed: false
-    };
-    const iconOnlyMode = result.iconOnlyMode || false;
-
-    // Apply preferences to form
-    document.getElementById('defaultProject').value = preferences.defaultProject;
-    document.getElementById('includeBody').checked = preferences.includeBody;
-    document.getElementById('includeAttachments').checked = preferences.includeAttachments;
-    document.getElementById('includeHeaders').checked = preferences.includeHeaders;
-    document.getElementById('autoAddTodoist').checked = preferences.autoAddTodoist;
-    document.getElementById('markAsProcessed').checked = preferences.markAsProcessed;
-    document.getElementById('iconOnlyMode').checked = iconOnlyMode;
-
-    console.log('Settings loaded:', preferences, 'Icon-only mode:', iconOnlyMode);
   } catch (error) {
     console.error('Error loading settings:', error);
   }

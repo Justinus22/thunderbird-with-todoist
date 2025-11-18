@@ -7,7 +7,6 @@ let allProjects = [];
 let allLabels = [];
 let allSections = [];
 let selectedTask = null;
-let iconOnlyMode = false;
 
 // Utility functions
 function escapeHtml(text) {
@@ -43,11 +42,6 @@ async function getTodoistToken() {
   return todoistToken;
 }
 
-async function getIconOnlyMode() {
-  const { iconOnlyMode } = await browser.storage.local.get('iconOnlyMode');
-  return iconOnlyMode || false;
-}
-
 async function testConnection() {
   const token = await getTodoistToken();
   if (!token) return false;
@@ -68,7 +62,6 @@ async function testConnection() {
 // Initialization
 async function init() {
   const token = await getTodoistToken();
-  iconOnlyMode = await getIconOnlyMode();
 
   if (token) {
     const isConnected = await testConnection();

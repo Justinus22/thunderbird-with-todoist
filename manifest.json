@@ -16,7 +16,7 @@
   
   "message_display_action": {
     "default_title": "Add to Todoist",
-    "default_popup": "simplified-modal.html",
+    "default_popup": "popup.html",
     "default_icon": {
       "16": "icons/icon-16.svg",
       "32": "icons/icon-32.svg",

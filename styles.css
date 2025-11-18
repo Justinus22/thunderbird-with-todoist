@@ -63,6 +63,26 @@ body {
   font-size: 12px;
 }
 
+/* Tabbed Interface */
+.tabbed-interface {
+  width: 350px;
+  height: 600px;
+  display: flex;
+  flex-direction: column;
+}
+
+.tab-content {
+  display: none;
+  flex: 1;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.tab-content.active {
+  display: flex;
+}
+
 /* Header */
 .header {
   display: flex;
@@ -77,6 +97,35 @@ body {
   margin: 0;
   font-size: 16px;
   font-weight: 600;
+}
+
+.tab-buttons {
+  display: flex;
+  gap: 4px;
+}
+
+.tab-btn {
+  background: transparent;
+  border: none;
+  color: #cccccc;
+  padding: 8px 16px;
+  border-radius: 6px 6px 0 0;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 500;
+  transition: all 0.2s;
+  border-bottom: 2px solid transparent;
+}
+
+.tab-btn:hover {
+  background: #333333;
+  color: #ffffff;
+}
+
+.tab-btn.active {
+  background: #1e1e1e;
+  color: #db4c3f;
+  border-bottom-color: #db4c3f;
 }
 
 .icon-btn {

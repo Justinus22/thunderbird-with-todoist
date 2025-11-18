@@ -1,7 +1,7 @@
-// Main Popup - Choose action or browse tasks
+// Main Popup - Tabbed interface
 
 // State
-let currentView = 'menu'; // 'menu', 'subnote', 'addtask'
+let currentTab = 'subnote'; // 'subnote', 'addtask'
 let allTasks = [];
 let allProjects = [];
 let allLabels = [];
@@ -73,7 +73,7 @@ async function init() {
   if (token) {
     const isConnected = await testConnection();
     if (isConnected) {
-      showMenu();
+      await loadTabbedInterface();
     } else {
       showSetup();
     }
@@ -105,108 +105,47 @@ function setupEventListeners() {
   }
 }
 
-// Main Menu
-function showMenu() {
+// Tabbed Interface
+async function loadTabbedInterface() {
   document.getElementById('setupSection').classList.add('hidden');
-  currentView = 'menu';
 
-  const buttonContent = iconOnlyMode ? '' : `
-    <span class="action-text">Add as Subnote</span>
-  `;
-
-  const buttonContent2 = iconOnlyMode ? '' : `
-    <span class="action-text">Add Task</span>
-  `;
-
-  document.getElementById('main-content').innerHTML = `
-    <div class="action-menu">
-      <div class="header">
-        <h3>Todoist Actions</h3>
-        <button id="settingsBtn" class="icon-btn" title="Settings">
-          <svg width="20" height="20" viewBox="0 0 20 20" fill="currentColor">
-            <path d="M10 6a4 4 0 100 8 4 4 0 000-8zm-2 4a2 2 0 114 0 2 2 0 01-4 0z"/>
-            <path d="M10 0C9.651 0 9.303.025 8.959.075l-.866 2.033A8.07 8.07 0 006.5 3.232L4.232 2.366l-.866.5a10 10 0 00-1.5 2.598l.866.5 1.768 1.036v2l-1.768 1.036-.866.5a10 10 0 001.5 2.598l.866.5 2.268-.866a8.07 8.07 0 001.593 1.124l.866 2.033c.344.05.692.075 1.041.075s.697-.025 1.041-.075l.866-2.033a8.07 8.07 0 001.593-1.124l2.268.866.866-.5a10 10 0 001.5-2.598l-.866-.5-1.768-1.036v-2l1.768-1.036.866-.5a10 10 0 00-1.5-2.598l-.866-.5-2.268.866a8.07 8.07 0 00-1.593-1.124L11.041.075A10.07 10.07 0 0010 0z"/>
-          </svg>
-        </button>
-      </div>
-
-      <div class="action-buttons-large">
-        <button id="subnoteBtn" class="action-btn-large subnote-btn" title="Attach email to existing task as subnote">
-          <svg width="32" height="32" viewBox="0 0 32 32" fill="currentColor">
-            <path d="M16 4v24M4 16h24" stroke="currentColor" stroke-width="3" stroke-linecap="round"/>
-            <circle cx="16" cy="16" r="14" stroke="currentColor" stroke-width="2" fill="none"/>
-          </svg>
-          ${buttonContent}
-        </button>
-
-        <button id="addTaskBtn" class="action-btn-large add-task-btn" title="Create new task from email">
-          <svg width="32" height="32" viewBox="0 0 32 32" fill="currentColor">
-            <rect x="6" y="6" width="20" height="20" rx="2" stroke="currentColor" stroke-width="2" fill="none"/>
-            <line x1="10" y1="12" x2="22" y2="12" stroke="currentColor" stroke-width="2"/>
-            <line x1="10" y1="16" x2="18" y2="16" stroke="currentColor" stroke-width="2"/>
-            <line x1="10" y1="20" x2="20" y2="20" stroke="currentColor" stroke-width="2"/>
-          </svg>
-          ${buttonContent2}
-        </button>
-      </div>
-    </div>
-  `;
-
-  document.getElementById('settingsBtn').addEventListener('click', openSettings);
-  document.getElementById('subnoteBtn').addEventListener('click', () => loadSubnoteView());
-  document.getElementById('addTaskBtn').addEventListener('click', () => loadAddTaskView());
-}
-
-async function openSettings() {
-  try {
-    await browser.tabs.create({
-      url: browser.runtime.getURL('config.html'),
-      active: true
-    });
-  } catch (error) {
-    updateStatus('Failed to open settings', 'error');
-  }
-}
-
-// Subnote View
-async function loadSubnoteView() {
-  currentView = 'subnote';
+  // Load all data first
   document.getElementById('main-content').innerHTML = `
     <div class="loading">
       <div class="spinner"></div>
-      Loading tasks...
+      Loading...
     </div>
   `;
 
   try {
-    const [tasksResponse, projectsResponse, labelsResponse] = await Promise.all([
+    const [tasksResponse, projectsResponse, labelsResponse, sectionsResponse] = await Promise.all([
       browser.runtime.sendMessage({ action: 'GET_ALL_TASKS' }),
       browser.runtime.sendMessage({ action: 'GET_PROJECTS' }),
-      browser.runtime.sendMessage({ action: 'GET_LABELS' })
+      browser.runtime.sendMessage({ action: 'GET_LABELS' }),
+      browser.runtime.sendMessage({ action: 'GET_SECTIONS' })
     ]);
 
     allTasks = tasksResponse.success ? tasksResponse.data : [];
     allProjects = projectsResponse.success ? projectsResponse.projects : [];
     allLabels = labelsResponse.success ? labelsResponse.data : [];
+    allSections = sectionsResponse.success ? sectionsResponse.data : [];
 
-    renderSubnoteInterface();
+    renderTabbedInterface();
     await loadSavedFilters();
-    applyFilters();
+    showTab('subnote'); // Default to subnote tab
   } catch (error) {
-    document.getElementById('main-content').innerHTML = '<div class="status error">Error loading tasks</div>';
+    document.getElementById('main-content').innerHTML = '<div class="status error">Error loading data</div>';
   }
 }
 
-function renderSubnoteInterface() {
+function renderTabbedInterface() {
   document.getElementById('main-content').innerHTML = `
-    <div class="task-interface">
+    <div class="tabbed-interface">
       <div class="header">
-        <button id="backBtn" class="icon-btn" title="Back">
-          <svg width="20" height="20" viewBox="0 0 20 20" fill="currentColor">
-            <path d="M10 4l-6 6 6 6V4z"/>
-          </svg>
-        </button>
-        <h3>Select Task</h3>
+        <div class="tab-buttons">
+          <button class="tab-btn active" data-tab="subnote">Add as Subnote</button>
+          <button class="tab-btn" data-tab="addtask">Add Task</button>
+        </div>
         <button id="settingsBtn" class="icon-btn" title="Settings">
           <svg width="20" height="20" viewBox="0 0 20 20" fill="currentColor">
             <path d="M10 6a4 4 0 100 8 4 4 0 000-8zm-2 4a2 2 0 114 0 2 2 0 01-4 0z"/>
@@ -217,43 +156,91 @@ function renderSubnoteInterface() {
 
       <div id="status" class="status info hidden"></div>
 
-      <div class="search-filters">
-        <div class="search-container">
-          <input type="text" id="taskSearch" placeholder="Search tasks..." class="search-input">
-          <button id="clearFilters" class="clear-filters-btn">Clear</button>
+      <!-- Subnote Tab Content -->
+      <div class="tab-content active" id="subnote-tab">
+        <div class="search-filters">
+          <div class="search-container">
+            <input type="text" id="taskSearch" placeholder="Search tasks..." class="search-input">
+            <button id="clearFilters" class="clear-filters-btn">Clear</button>
+          </div>
+          <div class="filter-row">
+            <select id="projectFilter" class="filter-select">
+              <option value="">All Projects</option>
+              ${allProjects.map(p => `<option value="${p.id}">${escapeHtml(p.name)}</option>`).join('')}
+            </select>
+            <select id="labelFilter" class="filter-select">
+              <option value="">All Labels</option>
+              ${allLabels.map(l => `<option value="${l.name}">${escapeHtml(l.name)}</option>`).join('')}
+            </select>
+          </div>
         </div>
-        <div class="filter-row">
-          <select id="projectFilter" class="filter-select">
-            <option value="">All Projects</option>
-            ${allProjects.map(p => `<option value="${p.id}">${escapeHtml(p.name)}</option>`).join('')}
-          </select>
-          <select id="labelFilter" class="filter-select">
-            <option value="">All Labels</option>
-            ${allLabels.map(l => `<option value="${l.name}">${escapeHtml(l.name)}</option>`).join('')}
-          </select>
+
+        <div class="task-list-container">
+          <div id="taskList" class="task-list"></div>
+        </div>
+
+        <div class="selected-task-area">
+          <div id="selectedTaskDisplay" class="selected-task">
+            <p>No task selected</p>
+          </div>
+          <button id="attachEmailBtn" class="action-btn subnote-btn" disabled style="width: 100%;">
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+              <path d="M8 2v12M2 8h12" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+            </svg>
+            Add as Subnote
+          </button>
         </div>
       </div>
 
-      <div class="task-list-container">
-        <div id="taskList" class="task-list"></div>
-      </div>
+      <!-- Add Task Tab Content -->
+      <div class="tab-content" id="addtask-tab">
+        <div class="form-container">
+          <label class="form-label">
+            Task Title
+            <input type="text" id="taskTitle" class="form-input" placeholder="Email subject will be used if empty">
+          </label>
 
-      <div class="selected-task-area">
-        <div id="selectedTaskDisplay" class="selected-task">
-          <p>No task selected</p>
+          <label class="form-label">
+            Project <span class="required">*</span>
+            <select id="projectSelect" class="form-select">
+              <option value="">Select a project</option>
+              ${allProjects.map(p => `<option value="${p.id}">${escapeHtml(p.name)}</option>`).join('')}
+            </select>
+          </label>
+
+          <label class="form-label">
+            Section (optional)
+            <select id="sectionSelect" class="form-select">
+              <option value="">No section</option>
+            </select>
+          </label>
+
+          <button id="createTaskBtn" class="btn create-task-btn">
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+              <rect x="2" y="2" width="12" height="12" rx="1" stroke="currentColor" stroke-width="1.5" fill="none"/>
+              <line x1="4" y1="6" x2="12" y2="6" stroke="currentColor" stroke-width="1.5"/>
+              <line x1="4" y1="8" x2="10" y2="8" stroke="currentColor" stroke-width="1.5"/>
+              <line x1="4" y1="10" x2="11" y2="10" stroke="currentColor" stroke-width="1.5"/>
+            </svg>
+            Create Task
+          </button>
         </div>
-        <button id="attachEmailBtn" class="action-btn subnote-btn" disabled style="width: 100%;">
-          <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
-            <path d="M8 2v12M2 8h12" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
-          </svg>
-          Add as Subnote
-        </button>
       </div>
     </div>
   `;
 
-  document.getElementById('backBtn').addEventListener('click', showMenu);
+  // Setup tab switching
+  document.querySelectorAll('.tab-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const tab = btn.dataset.tab;
+      showTab(tab);
+    });
+  });
+
+  // Setup event listeners
   document.getElementById('settingsBtn').addEventListener('click', openSettings);
+
+  // Subnote tab listeners
   document.getElementById('taskSearch').addEventListener('input', debounce(applyFilters, 300));
   document.getElementById('projectFilter').addEventListener('change', () => {
     saveFilters();
@@ -265,6 +252,45 @@ function renderSubnoteInterface() {
   });
   document.getElementById('clearFilters').addEventListener('click', clearFilters);
   document.getElementById('attachEmailBtn').addEventListener('click', attachEmail);
+
+  // Add task tab listeners
+  document.getElementById('projectSelect').addEventListener('change', updateSectionOptions);
+  document.getElementById('createTaskBtn').addEventListener('click', createTask);
+}
+
+function showTab(tabName) {
+  currentTab = tabName;
+
+  // Update tab buttons
+  document.querySelectorAll('.tab-btn').forEach(btn => {
+    if (btn.dataset.tab === tabName) {
+      btn.classList.add('active');
+    } else {
+      btn.classList.remove('active');
+    }
+  });
+
+  // Update tab content
+  document.querySelectorAll('.tab-content').forEach(content => {
+    content.classList.remove('active');
+  });
+  document.getElementById(`${tabName}-tab`).classList.add('active');
+
+  // If showing subnote tab, display tasks
+  if (tabName === 'subnote') {
+    applyFilters();
+  }
+}
+
+async function openSettings() {
+  try {
+    await browser.tabs.create({
+      url: browser.runtime.getURL('config.html'),
+      active: true
+    });
+  } catch (error) {
+    updateStatus('Failed to open settings', 'error');
+  }
 }
 
 function applyFilters() {
@@ -428,91 +454,6 @@ function clearFilters() {
 
   browser.storage.local.remove('taskFilters');
   applyFilters();
-}
-
-// Add Task View
-async function loadAddTaskView() {
-  currentView = 'addtask';
-  document.getElementById('main-content').innerHTML = `
-    <div class="loading">
-      <div class="spinner"></div>
-      Loading...
-    </div>
-  `;
-
-  try {
-    const [projectsResponse, sectionsResponse] = await Promise.all([
-      browser.runtime.sendMessage({ action: 'GET_PROJECTS' }),
-      browser.runtime.sendMessage({ action: 'GET_SECTIONS' })
-    ]);
-
-    allProjects = projectsResponse.success ? projectsResponse.projects : [];
-    allSections = sectionsResponse.success ? sectionsResponse.data : [];
-
-    renderAddTaskForm();
-  } catch (error) {
-    document.getElementById('main-content').innerHTML = '<div class="status error">Error loading data</div>';
-  }
-}
-
-function renderAddTaskForm() {
-  document.getElementById('main-content').innerHTML = `
-    <div class="add-task-form">
-      <div class="header">
-        <button id="backBtn" class="icon-btn" title="Back">
-          <svg width="20" height="20" viewBox="0 0 20 20" fill="currentColor">
-            <path d="M10 4l-6 6 6 6V4z"/>
-          </svg>
-        </button>
-        <h3>Create Task</h3>
-        <button id="settingsBtn" class="icon-btn" title="Settings">
-          <svg width="20" height="20" viewBox="0 0 20 20" fill="currentColor">
-            <path d="M10 6a4 4 0 100 8 4 4 0 000-8zm-2 4a2 2 0 114 0 2 2 0 01-4 0z"/>
-            <path d="M10 0C9.651 0 9.303.025 8.959.075l-.866 2.033A8.07 8.07 0 006.5 3.232L4.232 2.366l-.866.5a10 10 0 00-1.5 2.598l.866.5 1.768 1.036v2l-1.768 1.036-.866.5a10 10 0 001.5 2.598l.866.5 2.268-.866a8.07 8.07 0 001.593 1.124l.866 2.033c.344.05.692.075 1.041.075s.697-.025 1.041-.075l.866-2.033a8.07 8.07 0 001.593-1.124l2.268.866.866-.5a10 10 0 001.5-2.598l-.866-.5-1.768-1.036v-2l1.768-1.036.866-.5a10 10 0 00-1.5-2.598l-.866-.5-2.268.866a8.07 8.07 0 00-1.593-1.124L11.041.075A10.07 10.07 0 0010 0z"/>
-          </svg>
-        </button>
-      </div>
-
-      <div id="status" class="status info hidden"></div>
-
-      <div class="form-container">
-        <label class="form-label">
-          Task Title
-          <input type="text" id="taskTitle" class="form-input" placeholder="Email subject will be used if empty">
-        </label>
-
-        <label class="form-label">
-          Project <span class="required">*</span>
-          <select id="projectSelect" class="form-select">
-            <option value="">Select a project</option>
-            ${allProjects.map(p => `<option value="${p.id}">${escapeHtml(p.name)}</option>`).join('')}
-          </select>
-        </label>
-
-        <label class="form-label">
-          Section (optional)
-          <select id="sectionSelect" class="form-select">
-            <option value="">No section</option>
-          </select>
-        </label>
-
-        <button id="createTaskBtn" class="btn create-task-btn">
-          <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
-            <rect x="2" y="2" width="12" height="12" rx="1" stroke="currentColor" stroke-width="1.5" fill="none"/>
-            <line x1="4" y1="6" x2="12" y2="6" stroke="currentColor" stroke-width="1.5"/>
-            <line x1="4" y1="8" x2="10" y2="8" stroke="currentColor" stroke-width="1.5"/>
-            <line x1="4" y1="10" x2="11" y2="10" stroke="currentColor" stroke-width="1.5"/>
-          </svg>
-          Create Task
-        </button>
-      </div>
-    </div>
-  `;
-
-  document.getElementById('backBtn').addEventListener('click', showMenu);
-  document.getElementById('settingsBtn').addEventListener('click', openSettings);
-  document.getElementById('projectSelect').addEventListener('change', updateSectionOptions);
-  document.getElementById('createTaskBtn').addEventListener('click', createTask);
 }
 
 function updateSectionOptions() {

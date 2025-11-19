@@ -7,7 +7,8 @@
   "permissions": [
     "messagesRead",
     "storage",
-    "tabs"
+    "tabs",
+    "compose"
   ],
 
   "background": {
@@ -17,6 +18,16 @@
   "message_display_action": {
     "default_title": "Todoist",
     "default_popup": "popup.html",
+    "default_icon": {
+      "16": "icons/icon-16.svg",
+      "32": "icons/icon-32.svg",
+      "64": "icons/icon-64.svg"
+    }
+  },
+
+  "compose_action": {
+    "default_title": "Attach to Todoist Task",
+    "default_popup": "compose-popup.html",
     "default_icon": {
       "16": "icons/icon-16.svg",
       "32": "icons/icon-32.svg",

@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Attach to Todoist Task</title>
+  <link rel="stylesheet" href="styles.css">
+  <style>
+    body {
+      min-width: 400px;
+      max-width: 500px;
+      padding: 0;
+      margin: 0;
+      background: #1e1e1e;
+      color: #ffffff;
+    }
+    .compose-container {
+      padding: 15px;
+      background: #1e1e1e;
+    }
+    .section-header {
+      font-size: 13px;
+      font-weight: 600;
+      margin-bottom: 8px;
+      color: #ffffff;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .form-group {
+      margin-bottom: 15px;
+    }
+    .form-select, .search-input {
+      width: 100%;
+      padding: 8px;
+      border: 1px solid #404040;
+      border-radius: 4px;
+      font-size: 13px;
+      box-sizing: border-box;
+      background: #1e1e1e;
+      color: #ffffff;
+    }
+    .form-select:focus, .search-input:focus {
+      outline: none;
+      border-color: #db4c3f;
+    }
+    .search-input::placeholder {
+      color: #888;
+    }
+    .task-list-compact {
+      max-height: 250px;
+      overflow-y: auto;
+      border: 1px solid #404040;
+      border-radius: 4px;
+      margin-top: 8px;
+      background: #1e1e1e;
+    }
+    .task-item-compact {
+      padding: 10px;
+      cursor: pointer;
+      border-bottom: 1px solid #333333;
+      transition: background-color 0.2s;
+    }
+    .task-item-compact:hover {
+      background-color: #2a2a2a;
+    }
+    .task-item-compact.selected {
+      background-color: #404040;
+      border-left: 3px solid #db4c3f;
+    }
+    .task-item-compact:last-child {
+      border-bottom: none;
+    }
+    .task-title-compact {
+      font-size: 13px;
+      font-weight: 500;
+      margin-bottom: 4px;
+      color: #ffffff;
+    }
+    .task-meta-compact {
+      font-size: 11px;
+      color: #888888;
+    }
+    .selected-task-display {
+      background: #2a2a2a;
+      padding: 10px;
+      border-radius: 4px;
+      margin-top: 8px;
+      font-size: 12px;
+      min-height: 40px;
+      border: 1px solid #404040;
+    }
+    .selected-task-display.empty {
+      color: #cccccc;
+      font-style: italic;
+    }
+    .clear-btn {
+      background: none;
+      border: none;
+      color: #db4c3f;
+      cursor: pointer;
+      font-size: 12px;
+      padding: 0;
+    }
+    .clear-btn:hover {
+      text-decoration: underline;
+    }
+    .info-text {
+      font-size: 11px;
+      color: #cccccc;
+      margin-top: 8px;
+      line-height: 1.4;
+    }
+    .no-tasks {
+      padding: 20px;
+      text-align: center;
+      color: #888888;
+      font-size: 12px;
+    }
+  </style>
+</head>
+<body>
+  <div id="setupSection" class="setup-section hidden">
+    <h2>Setup Required</h2>
+    <p>Configure your Todoist API token to get started.</p>
+    <button id="openConfigBtn" class="btn">Open Settings</button>
+  </div>
+
+  <div id="main-content" class="compose-container">
+    <div class="loading">
+      <div class="spinner"></div>
+      Loading...
+    </div>
+  </div>
+
+  <script src="compose-popup.js"></script>
+</body>
+</html>

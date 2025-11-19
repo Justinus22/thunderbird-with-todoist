@@ -1,6 +1,13 @@
 // Background script for Thunderbird-Todoist Integration
+//
+// Features:
+// - View received emails and attach them to Todoist tasks as subtask notes
+// - Compose emails and attach them to Todoist tasks (moves task to section, adds subtask)
+// - Create new tasks from emails
+// - Open emails from Todoist task links
 
 const TODOIST_API_BASE = 'https://api.todoist.com/api/v1';
+
 
 // Storage helpers
 async function getTodoistToken() {
@@ -35,6 +42,11 @@ async function fetchTodoist(endpoint, options = {}) {
   if (!response.ok) {
     const errorText = await response.text();
     throw new Error(`API Error: ${response.status} - ${errorText}`);
+  }
+
+  // Handle 204 No Content responses (e.g., from task updates)
+  if (response.status === 204) {
+    return null;
   }
 
   return response.json();
@@ -315,6 +327,64 @@ async function addEmailComment(taskId, content) {
   }
 }
 
+// Move task to section using Sync API v1
+async function moveTaskToSection(taskId, sectionId) {
+  if (!taskId || !sectionId) {
+    return { success: false, error: 'Task ID and Section ID are required' };
+  }
+
+  try {
+    const token = await getTodoistToken();
+    if (!token) {
+      throw new Error('No API token found');
+    }
+
+    // Generate a UUID for the Sync API command
+    const uuid = 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+      const r = Math.random() * 16 | 0;
+      const v = c === 'x' ? r : (r & 0x3 | 0x8);
+      return v.toString(16);
+    });
+
+    // Build the item_move command
+    const command = {
+      type: 'item_move',
+      uuid: uuid,
+      args: {
+        id: taskId,
+        section_id: sectionId
+      }
+    };
+
+    // Call the Sync API v1 endpoint
+    const response = await fetch('https://api.todoist.com/api/v1/sync', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/x-www-form-urlencoded'
+      },
+      body: `commands=${encodeURIComponent(JSON.stringify([command]))}`
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`API Error: ${response.status} - ${errorText}`);
+    }
+
+    const result = await response.json();
+
+    // Check if the command succeeded
+    if (result.sync_status && result.sync_status[uuid] === 'ok') {
+      return { success: true, data: result };
+    } else {
+      const error = result.sync_status?.[uuid] || 'Unknown error';
+      return { success: false, error: `Sync failed: ${JSON.stringify(error)}` };
+    }
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
+}
+
 // Open email from Todoist link
 async function openEmailFromLink(headerMessageId) {
   try {
@@ -381,5 +451,65 @@ browser.runtime.onMessage.addListener(async (message) => {
     }
   } catch (error) {
     return { success: false, error: error.message };
+  }
+});
+
+// Compose window email send interception
+browser.compose.onBeforeSend.addListener(async (tab, details) => {
+  try {
+    // Get the compose state for this tab
+    const { composeStates } = await browser.storage.local.get('composeStates');
+    const state = composeStates?.[tab.id];
+
+    // If no task is selected, allow normal send
+    if (!state || !state.taskId) {
+      return;
+    }
+
+    // Get compose details
+    const composeDetails = await browser.compose.getComposeDetails(tab.id);
+
+    // Move task to section if specified
+    if (state.sectionId) {
+      const moveResult = await moveTaskToSection(state.taskId, state.sectionId);
+      if (!moveResult.success) {
+        console.error('Failed to move task:', moveResult.error);
+        // Continue anyway to create subtask
+      }
+    }
+
+    // Create subtask note with the email content
+    const emailSubject = composeDetails.subject || 'No Subject';
+    const emailBody = composeDetails.plainTextBody || composeDetails.body || '';
+
+    // Ensure labels exist and add them (E-Mail, Note, Send)
+    const emailLabel = await ensureLabelExists('E-Mail');
+    const noteLabel = await ensureLabelExists('Note');
+    const sendLabel = await ensureLabelExists('Send');
+
+    const labels = [];
+    if (emailLabel) labels.push(emailLabel);
+    if (noteLabel) labels.push(noteLabel);
+    if (sendLabel) labels.push(sendLabel);
+
+    // Create the subtask with * prefix in title
+    await fetchTodoist('/tasks', {
+      method: 'POST',
+      body: JSON.stringify({
+        content: `* ${emailSubject}`,
+        description: emailBody,
+        parent_id: state.taskId,
+        priority: 1,
+        labels: labels
+      })
+    });
+
+    // Clean up the compose state for this tab
+    delete composeStates[tab.id];
+    await browser.storage.local.set({ composeStates });
+
+  } catch (error) {
+    console.error('Error in onBeforeSend handler:', error);
+    // Allow email to send even if there's an error
   }
 });

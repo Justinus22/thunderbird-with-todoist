@@ -446,6 +446,9 @@ browser.runtime.onMessage.addListener(async (message) => {
       case 'OPEN_EMAIL_FROM_LINK':
         return await openEmailFromLink(message.headerMessageId);
 
+      case 'MOVE_TASK':
+        return await moveTaskToSection(message.taskId, message.sectionId);
+
       default:
         return { success: false, error: 'Unknown message type' };
     }

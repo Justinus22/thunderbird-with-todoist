@@ -1,7 +1,7 @@
 // Main Popup - Tabbed interface
 
 // State
-let currentTab = 'subnote'; // 'subnote', 'addtask'
+let currentTab = 'subnote'; // 'subnote', 'addtask', 'move', 'notes'
 let allTasks = [];
 let allProjects = [];
 let allLabels = [];
@@ -9,6 +9,10 @@ let allSections = [];
 let selectedTask = null;
 let selectedLabels = []; // For include
 let excludedLabels = []; // For exclude
+let moveSelectedTask = null; // For move tab
+
+// Shared search text across all tabs
+let sharedSearchText = '';
 
 // Utility functions
 function escapeHtml(text) {
@@ -152,6 +156,7 @@ function renderTabbedInterface() {
         <div class="tab-buttons">
           <button class="tab-btn active" data-tab="subnote">Subnote</button>
           <button class="tab-btn" data-tab="addtask">Add Task</button>
+          <button class="tab-btn" data-tab="move">Move</button>
           <button class="tab-btn" data-tab="notes">Notes</button>
         </div>
         <button id="settingsBtn" class="icon-btn" title="Settings">
@@ -238,6 +243,45 @@ function renderTabbedInterface() {
         </div>
       </div>
 
+      <!-- Move Tab Content -->
+      <div class="tab-content" id="move-tab">
+        <div class="search-filters">
+          <div class="filter-row">
+            <select id="moveProjectFilter" class="filter-select">
+              <option value="">Select a project</option>
+              ${allProjects.map(p => `<option value="${p.id}">${escapeHtml(p.name)}</option>`).join('')}
+            </select>
+          </div>
+          <div class="search-container">
+            <input type="text" id="moveTaskSearch" placeholder="Search tasks..." class="search-input">
+          </div>
+        </div>
+
+        <div class="task-list-container">
+          <div id="moveTaskList" class="task-list"></div>
+        </div>
+
+        <div class="selected-task-area">
+          <div id="moveSelectedTaskDisplay" class="selected-task">
+            <p>No task selected</p>
+          </div>
+
+          <label class="form-label" style="margin-top: 12px;">
+            Target Section <span class="required">*</span>
+            <select id="moveTargetSection" class="form-select">
+              <option value="">Select a section</option>
+            </select>
+          </label>
+
+          <button id="moveTaskBtn" class="action-btn" disabled style="width: 100%; background: #FF9800;">
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+              <path d="M8 2v12m4-8l-4-4-4 4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+            </svg>
+            Move Task
+          </button>
+        </div>
+      </div>
+
       <!-- Notes Tab Content -->
       <div class="tab-content" id="notes-tab">
         <div class="search-filters">
@@ -304,12 +348,34 @@ function renderTabbedInterface() {
   document.getElementById('projectSelect').addEventListener('change', updateSectionOptions);
   document.getElementById('createTaskBtn').addEventListener('click', createTask);
 
+  // Move tab listeners
+  document.getElementById('moveProjectFilter').addEventListener('change', onMoveProjectChange);
+  document.getElementById('moveTargetSection').addEventListener('change', onMoveSectionChange);
+  document.getElementById('moveTaskSearch').addEventListener('input', debounce(applyMoveFilters, 300));
+  document.getElementById('moveTaskBtn').addEventListener('click', moveTask);
+
   // Notes tab listeners
   document.getElementById('notesSearch').addEventListener('input', debounce(applyNotesFilters, 300));
   document.getElementById('notesProjectFilter').addEventListener('change', applyNotesFilters);
   setupLabelFilter('notesLabelFilterBtn', 'notesLabelFilterDropdown', 'notesLabelSearch', 'notesLabelList', 'notes');
   document.getElementById('clearNotesFilters').addEventListener('click', clearNotesFilters);
   document.getElementById('openEmailFromNoteBtn').addEventListener('click', openEmailFromNote);
+
+  // Initialize Move tab with saved settings
+  initializeMoveTab();
+}
+
+async function initializeMoveTab() {
+  const settings = await getMoveSettings();
+
+  if (settings.projectId) {
+    const moveProjectFilter = document.getElementById('moveProjectFilter');
+    if (moveProjectFilter) {
+      moveProjectFilter.value = settings.projectId;
+      updateMoveSectionOptions(settings.projectId, settings.sectionId);
+      applyMoveFilters();
+    }
+  }
 }
 
 // Label filter management
@@ -430,6 +496,9 @@ function updateLabelCount(btn) {
 }
 
 function showTab(tabName) {
+  // Save current search text before switching
+  saveSharedSearchText();
+
   currentTab = tabName;
 
   // Update tab buttons
@@ -447,11 +516,38 @@ function showTab(tabName) {
   });
   document.getElementById(`${tabName}-tab`).classList.add('active');
 
-  // If showing subnote tab, display tasks
+  // Restore shared search text for the new tab and display tasks
   if (tabName === 'subnote') {
+    restoreSharedSearchText('taskSearch');
     applyFilters();
+  } else if (tabName === 'move') {
+    restoreSharedSearchText('moveTaskSearch');
+    applyMoveFilters();
   } else if (tabName === 'notes') {
+    restoreSharedSearchText('notesSearch');
     applyNotesFilters();
+  }
+}
+
+function saveSharedSearchText() {
+  let input = null;
+  if (currentTab === 'subnote') {
+    input = document.getElementById('taskSearch');
+  } else if (currentTab === 'move') {
+    input = document.getElementById('moveTaskSearch');
+  } else if (currentTab === 'notes') {
+    input = document.getElementById('notesSearch');
+  }
+
+  if (input) {
+    sharedSearchText = input.value;
+  }
+}
+
+function restoreSharedSearchText(inputId) {
+  const input = document.getElementById(inputId);
+  if (input) {
+    input.value = sharedSearchText;
   }
 }
 
@@ -715,6 +811,175 @@ async function createTask() {
     }
   } catch (error) {
     updateStatus('Error creating task', 'error');
+  }
+}
+
+// Move tab functions
+async function getMoveSettings() {
+  const { moveSettings } = await browser.storage.local.get('moveSettings');
+  return moveSettings || { projectId: '', sectionId: '' };
+}
+
+async function saveMoveSettings(settings) {
+  await browser.storage.local.set({ moveSettings: settings });
+}
+
+async function onMoveProjectChange() {
+  const projectId = document.getElementById('moveProjectFilter').value;
+
+  // Save the selected project
+  const settings = await getMoveSettings();
+  settings.projectId = projectId;
+  settings.sectionId = ''; // Reset section when project changes
+  await saveMoveSettings(settings);
+
+  updateMoveSectionOptions(projectId, '');
+  applyMoveFilters();
+}
+
+async function onMoveSectionChange() {
+  const sectionId = document.getElementById('moveTargetSection').value;
+
+  // Save the selected section
+  const settings = await getMoveSettings();
+  settings.sectionId = sectionId;
+  await saveMoveSettings(settings);
+}
+
+function updateMoveSectionOptions(projectId, selectedSectionId = '') {
+  const sectionSelect = document.getElementById('moveTargetSection');
+
+  if (!projectId) {
+    sectionSelect.innerHTML = '<option value="">Select a section</option>';
+    return;
+  }
+
+  const projectSections = allSections.filter(s => s.project_id === projectId);
+  sectionSelect.innerHTML = '<option value="">Select a section</option>' +
+    projectSections.map(s => `<option value="${s.id}" ${s.id === selectedSectionId ? 'selected' : ''}>${escapeHtml(s.name)}</option>`).join('');
+}
+
+async function applyMoveFilters() {
+  const searchTerm = document.getElementById('moveTaskSearch')?.value.toLowerCase() || '';
+  const projectFilter = document.getElementById('moveProjectFilter')?.value || '';
+
+  // Get preference for hiding subtasks (default: true)
+  const { preferences } = await browser.storage.local.get('preferences');
+  const hideSubtasks = preferences?.hideSubtasksInMove !== false;
+
+  const filtered = allTasks.filter(task => {
+    const matchesSearch = !searchTerm ||
+      task.content.toLowerCase().includes(searchTerm) ||
+      (task.description?.toLowerCase().includes(searchTerm));
+
+    const matchesProject = !projectFilter || task.project_id === projectFilter;
+
+    // Filter out subtasks if preference is enabled
+    const isNotSubtask = !hideSubtasks || !task.parent_id;
+
+    return matchesSearch && matchesProject && isNotSubtask;
+  });
+
+  displayMoveTasks(filtered);
+}
+
+function displayMoveTasks(tasks) {
+  const taskList = document.getElementById('moveTaskList');
+  if (!taskList) return;
+
+  if (tasks.length === 0) {
+    taskList.innerHTML = '<div style="padding: 20px; text-align: center; color: #666;">No tasks found</div>';
+    return;
+  }
+
+  taskList.innerHTML = tasks.map(task => `
+    <div class="task-item" data-move-task-id="${task.id}">
+      <div class="task-title">${escapeHtml(task.content)}</div>
+      <div class="task-meta">
+        <span class="task-project">${escapeHtml(getProjectName(task.project_id))}</span>
+        ${task.due ? `<span class="task-due">${formatDueDate(task.due.date)}</span>` : ''}
+        ${task.labels?.length ? `<span class="task-labels">${task.labels.map(l => `#${l}`).join(' ')}</span>` : ''}
+      </div>
+    </div>
+  `).join('');
+
+  taskList.querySelectorAll('.task-item').forEach(el => {
+    el.addEventListener('click', () => {
+      const taskId = el.dataset.moveTaskId;
+      const task = allTasks.find(t => t.id === taskId);
+      if (task) selectMoveTask(task);
+    });
+  });
+}
+
+function selectMoveTask(task) {
+  document.querySelectorAll('[data-move-task-id]').forEach(el => el.classList.remove('selected'));
+
+  const taskElement = document.querySelector(`[data-move-task-id="${task.id}"]`);
+  if (taskElement) taskElement.classList.add('selected');
+
+  moveSelectedTask = task;
+
+  const display = document.getElementById('moveSelectedTaskDisplay');
+  if (display) {
+    const description = task.description ? task.description.split('---')[0].trim() : '';
+    const truncatedDesc = truncateText(description, 2);
+
+    display.innerHTML = `
+      <div class="selected-task-info">
+        <h4>${escapeHtml(task.content)}</h4>
+        ${truncatedDesc ? `<p class="task-description" style="max-height: 3em; overflow: hidden; line-height: 1.5em;">${escapeHtml(truncatedDesc)}</p>` : ''}
+        <div class="task-meta">
+          <span class="task-project">${escapeHtml(getProjectName(task.project_id))}</span>
+        </div>
+      </div>
+    `;
+  }
+
+  const moveBtn = document.getElementById('moveTaskBtn');
+  if (moveBtn) moveBtn.disabled = false;
+}
+
+async function moveTask() {
+  if (!moveSelectedTask) {
+    updateStatus('No task selected', 'error');
+    return;
+  }
+
+  const targetSection = document.getElementById('moveTargetSection').value;
+  if (!targetSection) {
+    updateStatus('Please select a target section', 'error');
+    return;
+  }
+
+  try {
+    updateStatus('Moving task...', 'info');
+
+    const response = await browser.runtime.sendMessage({
+      action: 'MOVE_TASK',
+      taskId: moveSelectedTask.id,
+      sectionId: targetSection
+    });
+
+    if (response.success) {
+      updateStatus('Task moved successfully!', 'success');
+
+      // Refresh task list
+      const tasksResponse = await browser.runtime.sendMessage({ action: 'GET_ALL_TASKS' });
+      if (tasksResponse.success) {
+        allTasks = tasksResponse.data;
+        applyMoveFilters();
+      }
+
+      // Clear selection
+      moveSelectedTask = null;
+      document.getElementById('moveSelectedTaskDisplay').innerHTML = '<p>No task selected</p>';
+      document.getElementById('moveTaskBtn').disabled = true;
+    } else {
+      updateStatus(`Failed: ${response.error}`, 'error');
+    }
+  } catch (error) {
+    updateStatus('Error moving task', 'error');
   }
 }
 

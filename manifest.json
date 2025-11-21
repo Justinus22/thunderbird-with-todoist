@@ -4,6 +4,13 @@
   "version": "0.1.0",
   "description": "Attach emails as subtask notes to Todoist tasks",
 
+  "browser_specific_settings": {
+    "gecko": {
+      "id": "thunderbird-todoist@local.extension",
+      "strict_min_version": "102.0"
+    }
+  },
+
   "permissions": [
     "messagesRead",
     "storage",

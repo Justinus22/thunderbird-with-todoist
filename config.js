@@ -42,6 +42,9 @@ function setupEventListeners() {
       saveTokenHandler();
     }
   });
+
+  // Preferences tab
+  document.getElementById('savePreferences').addEventListener('click', savePreferencesHandler);
 }
 
 // Tab switching functionality
@@ -199,6 +202,15 @@ async function loadCurrentSettings() {
     } else {
       tokenInput.placeholder = 'Enter your Todoist API token...';
     }
+
+    // Load preferences
+    const { preferences } = await browser.storage.local.get('preferences');
+    const hideSubtasksCheckbox = document.getElementById('hideSubtasksInMove');
+
+    // Default to true (hide subtasks by default)
+    if (hideSubtasksCheckbox) {
+      hideSubtasksCheckbox.checked = preferences?.hideSubtasksInMove !== false;
+    }
   } catch (error) {
     console.error('Error loading settings:', error);
   }
@@ -220,6 +232,34 @@ function updateStats(stats) {
   }
   if (stats.emails !== undefined) {
     document.getElementById('emailsProcessed').textContent = stats.emails;
+  }
+}
+
+// Preferences handlers
+async function savePreferencesHandler() {
+  try {
+    const hideSubtasksCheckbox = document.getElementById('hideSubtasksInMove');
+
+    const preferences = {
+      hideSubtasksInMove: hideSubtasksCheckbox.checked
+    };
+
+    await browser.storage.local.set({ preferences });
+
+    const statusEl = document.getElementById('preferencesStatus');
+    statusEl.textContent = 'Preferences saved successfully!';
+    statusEl.className = 'status success';
+    statusEl.classList.remove('hidden');
+
+    setTimeout(() => {
+      statusEl.classList.add('hidden');
+    }, 3000);
+
+  } catch (error) {
+    const statusEl = document.getElementById('preferencesStatus');
+    statusEl.textContent = 'Failed to save preferences';
+    statusEl.className = 'status error';
+    statusEl.classList.remove('hidden');
   }
 }
 

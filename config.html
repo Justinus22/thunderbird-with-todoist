@@ -327,6 +327,21 @@
     .hidden {
       display: none;
     }
+
+    .checkbox-label {
+      display: flex;
+      align-items: center;
+      cursor: pointer;
+      font-size: 15px;
+      font-weight: 500;
+    }
+
+    .checkbox-input {
+      width: 18px;
+      height: 18px;
+      margin-right: 12px;
+      cursor: pointer;
+    }
     
     .loading-spinner {
       display: inline-block;
@@ -523,9 +538,24 @@
       <div class="tab-content" id="preferences">
         <div class="section">
           <h2>Preferences</h2>
-          <p style="color: #888; font-size: 14px; margin-top: 16px;">
-            No additional preferences available at this time. All task creation options are configured directly when creating tasks.
-          </p>
+
+          <div class="form-group" style="margin-top: 24px;">
+            <label class="checkbox-label">
+              <input type="checkbox" id="hideSubtasksInMove" class="checkbox-input">
+              <span>Hide subtasks in Move tab</span>
+            </label>
+            <p class="form-help" style="margin-top: 8px; color: #888; font-size: 13px;">
+              When enabled, only parent tasks (not subtasks) will be displayed in the Move tab task list. This makes it easier to find and move top-level tasks.
+            </p>
+          </div>
+
+          <div class="action-buttons" style="margin-top: 24px;">
+            <button id="savePreferences" class="btn btn-primary">
+              Save Preferences
+            </button>
+          </div>
+
+          <div id="preferencesStatus" class="status hidden"></div>
         </div>
       </div>
       

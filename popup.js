@@ -312,12 +312,6 @@ function renderTabbedInterface() {
           <div id="selectedNoteDisplay" class="selected-task">
             <p>No note selected</p>
           </div>
-          <button id="openEmailFromNoteBtn" class="action-btn" disabled style="width: 100%; background: #4CAF50;">
-            <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
-              <path d="M2 3h12v10H2V3zm0 0l6 4 6-4M2 13l4-3m8 3l-4-3" stroke="currentColor" stroke-width="1.5" fill="none"/>
-            </svg>
-            Open Email
-          </button>
         </div>
       </div>
     </div>
@@ -359,7 +353,6 @@ function renderTabbedInterface() {
   document.getElementById('notesProjectFilter').addEventListener('change', applyNotesFilters);
   setupLabelFilter('notesLabelFilterBtn', 'notesLabelFilterDropdown', 'notesLabelSearch', 'notesLabelList', 'notes');
   document.getElementById('clearNotesFilters').addEventListener('click', clearNotesFilters);
-  document.getElementById('openEmailFromNoteBtn').addEventListener('click', openEmailFromNote);
 
   // Initialize Move tab with saved settings
   initializeMoveTab();
@@ -988,10 +981,10 @@ function applyNotesFilters() {
   const searchTerm = document.getElementById('notesSearch')?.value.toLowerCase() || '';
   const projectFilter = document.getElementById('notesProjectFilter')?.value || '';
 
-  // Filter tasks that have email IDs
+  // Filter tasks that have the 'Note' label
   const filtered = allTasks.filter(task => {
-    const hasEmailId = task.description && task.description.includes('📧 Email ID:');
-    if (!hasEmailId) return false;
+    const hasNoteLabel = task.labels && task.labels.includes('Note');
+    if (!hasNoteLabel) return false;
 
     const matchesSearch = !searchTerm ||
       task.content.toLowerCase().includes(searchTerm) ||
@@ -1019,7 +1012,7 @@ function displayNotes(tasks) {
   if (!notesList) return;
 
   if (tasks.length === 0) {
-    notesList.innerHTML = '<div style="padding: 20px; text-align: center; color: #666;">No notes with emails found</div>';
+    notesList.innerHTML = '<div style="padding: 20px; text-align: center; color: #666;">No notes found</div>';
     return;
   }
 
@@ -1029,7 +1022,7 @@ function displayNotes(tasks) {
       <div class="task-meta">
         <span class="task-project">${escapeHtml(getProjectName(task.project_id))}</span>
         ${task.due ? `<span class="task-due">${formatDueDate(task.due.date)}</span>` : ''}
-        <span style="color: #4CAF50;">📧</span>
+        <span style="color: #4CAF50;">📝</span>
       </div>
     </div>
   `).join('');
@@ -1053,7 +1046,7 @@ function selectNote(task) {
 
   const display = document.getElementById('selectedNoteDisplay');
   if (display) {
-    const description = task.description ? task.description.split('---')[0].trim() : '';
+    const description = task.description || '';
     const truncatedDesc = truncateText(description, 2);
 
     display.innerHTML = `
@@ -1066,39 +1059,6 @@ function selectNote(task) {
         </div>
       </div>
     `;
-  }
-
-  const openEmailBtn = document.getElementById('openEmailFromNoteBtn');
-  if (openEmailBtn) openEmailBtn.disabled = false;
-}
-
-async function openEmailFromNote() {
-  if (!selectedTask || !selectedTask.description) {
-    updateStatus('No note selected', 'error');
-    return;
-  }
-
-  const match = selectedTask.description.match(/📧 Email ID: (.+?)(?:\n|$)/);
-  if (!match) {
-    updateStatus('No email ID found', 'error');
-    return;
-  }
-
-  const headerMessageId = match[1].trim();
-
-  try {
-    const response = await browser.runtime.sendMessage({
-      type: 'OPEN_EMAIL_FROM_LINK',
-      headerMessageId: headerMessageId
-    });
-
-    if (response.success) {
-      updateStatus('Opening email...', 'success');
-    } else {
-      updateStatus(`Failed to open email: ${response.error}`, 'error');
-    }
-  } catch (error) {
-    updateStatus('Error opening email', 'error');
   }
 }
 

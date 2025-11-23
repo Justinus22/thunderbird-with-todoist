@@ -143,20 +143,7 @@ async function getCurrentMessage() {
   return null;
 }
 
-// Generate email link for task description
-function generateEmailLink(headerMessageId, subject) {
-  if (!headerMessageId) return '';
-
-  // Store the headerMessageId as plain text metadata that we can parse later
-  return `\n\n---\n📧 Email ID: ${headerMessageId}`;
-}
-
-// Extract headerMessageId from task description
-function extractEmailId(description) {
-  if (!description) return null;
-  const match = description.match(/📧 Email ID: (.+?)(?:\n|$)/);
-  return match ? match[1].trim() : null;
-}
+// Email link functionality removed - feature was not working correctly
 
 // API endpoints
 async function testConnection(token) {
@@ -244,12 +231,8 @@ async function createTask(taskData, headerMessageId = null) {
   }
 
   try {
-    // Add email link to description if headerMessageId is provided
-    if (headerMessageId && taskData.description) {
-      const emailLink = generateEmailLink(headerMessageId, taskData.content);
-      taskData.description = taskData.description + emailLink;
-
-      // Add "E-Mail" label for tasks created from emails
+    // Add "E-Mail" label for tasks created from emails
+    if (headerMessageId) {
       const emailLabel = await ensureLabelExists('E-Mail');
       if (emailLabel) {
         taskData.labels = taskData.labels || [];
@@ -279,8 +262,7 @@ async function createEmailSubtask(parentTaskId, emailSubject, emailBody, headerM
   }
 
   try {
-    const emailLink = generateEmailLink(headerMessageId, emailSubject);
-    const description = (emailBody || 'No email content available') + emailLink;
+    const description = emailBody || 'No email content available';
 
     // Ensure labels exist and add them
     const emailLabel = await ensureLabelExists('E-Mail');
@@ -385,15 +367,7 @@ async function moveTaskToSection(taskId, sectionId) {
   }
 }
 
-// Open email from Todoist link
-async function openEmailFromLink(headerMessageId) {
-  try {
-    await browser.messageDisplay.open({ headerMessageId });
-    return { success: true };
-  } catch (error) {
-    return { success: false, error: error.message };
-  }
-}
+// Email opening functionality removed - feature was not working correctly
 
 // Message handler
 browser.runtime.onMessage.addListener(async (message) => {
@@ -442,9 +416,6 @@ browser.runtime.onMessage.addListener(async (message) => {
 
       case 'CREATE_TASK':
         return await createTask(message.taskData, message.headerMessageId);
-
-      case 'OPEN_EMAIL_FROM_LINK':
-        return await openEmailFromLink(message.headerMessageId);
 
       case 'MOVE_TASK':
         return await moveTaskToSection(message.taskId, message.sectionId);
